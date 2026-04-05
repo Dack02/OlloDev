@@ -31,6 +31,9 @@ COPY tsconfig.json ./tsconfig.json
 # Build with turbo
 RUN pnpm turbo run build --filter=@ollo-dev/api...
 
+# Prune dev dependencies
+RUN pnpm prune --prod
+
 # ============================================================
 # Stage 3: runner
 # ============================================================
@@ -39,11 +42,22 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy built output
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./package.json
+# Copy the full workspace structure needed for pnpm resolution
+COPY --from=builder /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
+
+# Copy node_modules (pruned to prod only)
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/packages/shared/node_modules ./packages/shared/node_modules
+
+# Copy built output
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/db ./packages/db
 
 EXPOSE 8000
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "apps/api/dist/index.js"]
