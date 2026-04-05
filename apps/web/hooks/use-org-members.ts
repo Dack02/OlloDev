@@ -26,9 +26,10 @@ export function useOrgMembers(): Map<string, OrgMember> {
         if (!json?.data) return;
         const map = new Map<string, OrgMember>();
         for (const m of json.data) {
+          const profile = m.profiles ?? {};
           map.set(m.user_id ?? m.id, {
-            display_name: m.display_name ?? m.full_name ?? m.email ?? "Unknown",
-            email: m.email ?? "",
+            display_name: profile.display_name ?? m.display_name ?? profile.email ?? m.email ?? "Unknown",
+            email: profile.email ?? m.email ?? "",
           });
         }
         setMembers(map);

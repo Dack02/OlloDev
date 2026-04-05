@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { SunIcon, MoonIcon, LogOutIcon, SettingsIcon } from "lucide-react";
 import { NotificationBell } from "@/components/layout/notification-panel";
+import { TimerWidget } from "@/components/projects/timer-widget";
 
 export function Header() {
   const { theme, setTheme } = useTheme();
@@ -41,8 +42,10 @@ export function Header() {
 
   return (
     <header className="flex h-12 items-center justify-between border-b border-border-subtle px-5 shrink-0">
-      {/* Left: breadcrumb / page title slot */}
-      <div />
+      {/* Left: timer widget */}
+      <div>
+        <TimerWidget />
+      </div>
 
       {/* Right: actions */}
       <div className="flex items-center gap-0.5">

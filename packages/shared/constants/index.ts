@@ -63,5 +63,18 @@ export const NOTIFICATION_TYPES = [
   'ticket_comment',
   'discussion_reply',
   'wiki_updated',
+  'github_pr_opened',
+  'github_pr_merged',
+  'github_ci_failed',
+  'github_push',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+export const GITHUB_EVENT_TYPES = ['push', 'pull_request', 'check_suite', 'check_run', 'installation'] as const;
+export type GitHubEventType = (typeof GITHUB_EVENT_TYPES)[number];
+
+export const PR_STATES = ['open', 'closed', 'merged'] as const;
+export type PrState = (typeof PR_STATES)[number];
+
+export const GITHUB_PR_LINK_ITEM_TYPES = ['task', 'bug', 'ticket'] as const;
+export type GitHubPrLinkItemType = (typeof GITHUB_PR_LINK_ITEM_TYPES)[number];

@@ -28,6 +28,13 @@ import projectTicketRoutes from './routes/projects/tickets.js';
 import projectFileRoutes from './routes/projects/files.js';
 import projectMessageRoutes from './routes/projects/messages.js';
 import projectNoteRoutes from './routes/projects/notes.js';
+import projectTimeEntryRoutes from './routes/projects/time-entries.js';
+import { githubInstallRoutes, githubCallbackRoutes } from './routes/github/install.js';
+import githubRepoRoutes from './routes/github/repos.js';
+import githubGitRoutes from './routes/github/git.js';
+import githubWebhookRoutes from './routes/github/webhooks.js';
+import githubLinkRoutes from './routes/github/links.js';
+import githubActivityRoutes from './routes/github/activity.js';
 
 const app = new OpenAPIHono();
 
@@ -66,6 +73,17 @@ app.route('/api/v1/orgs/:orgId/projects/:projectId/tickets', projectTicketRoutes
 app.route('/api/v1/orgs/:orgId/projects/:projectId/files', projectFileRoutes);
 app.route('/api/v1/orgs/:orgId/projects/:projectId/messages', projectMessageRoutes);
 app.route('/api/v1/orgs/:orgId/projects/:projectId/notes', projectNoteRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/time-entries', projectTimeEntryRoutes);
+
+// GitHub integration
+app.route('/api/v1/github', githubCallbackRoutes);
+app.route('/api/v1/github', githubWebhookRoutes);
+app.route('/api/v1/orgs/:orgId/github', githubInstallRoutes);
+app.route('/api/v1/orgs/:orgId/github/repos', githubRepoRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/github', githubGitRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/github/repos', githubRepoRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/github/links', githubLinkRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/github/activity', githubActivityRoutes);
 
 // ============================================================
 // Health check

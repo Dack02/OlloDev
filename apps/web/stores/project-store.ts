@@ -123,6 +123,95 @@ export interface ProjectNote {
   updated_at: string;
 }
 
+// ── Time entries ───────────────────────────────────────────────
+
+export interface TimeEntry {
+  id: string;
+  org_id: string;
+  project_id: string;
+  user_id: string;
+  task_id: string | null;
+  description: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  is_manual: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RunningTimer extends TimeEntry {
+  projects?: { name: string; color: string };
+}
+
+// ── GitHub integration ─────────────────────────────────────────
+
+export interface GitHubRepo {
+  id: string;
+  project_id: string;
+  full_name: string;
+  default_branch: string;
+  is_primary: boolean;
+}
+
+export interface GitCommit {
+  sha: string;
+  message: string;
+  author_login: string;
+  author_avatar: string | null;
+  date: string | null;
+  url: string;
+}
+
+export interface GitPullRequest {
+  number: number;
+  title: string;
+  state: "open" | "closed" | "merged";
+  author_login: string;
+  author_avatar: string | null;
+  created_at: string;
+  updated_at: string;
+  url: string;
+  draft: boolean;
+  additions?: number;
+  deletions?: number;
+  head_ref: string;
+  base_ref: string;
+  requested_reviewers: string[];
+}
+
+export interface GitBranch {
+  name: string;
+  protected: boolean;
+  last_commit_sha: string;
+}
+
+export interface GitActionRun {
+  id: number;
+  name: string | null;
+  status: string | null;
+  conclusion: string | null;
+  head_branch: string | null;
+  head_sha: string | null;
+  event: string;
+  url: string;
+  created_at: string;
+  updated_at: string;
+  actor_login: string | null;
+  actor_avatar: string | null;
+}
+
+export interface GitHubEvent {
+  id: string;
+  repo_id: string;
+  event_type: string;
+  action: string | null;
+  payload: Record<string, unknown>;
+  actor_login: string | null;
+  actor_avatar: string | null;
+  created_at: string;
+}
+
 // ── Updates / changelog ─────────────────────────────────────────
 
 export interface ProjectUpdate {
@@ -163,9 +252,22 @@ interface ProjectState {
   updates: ProjectUpdate[];
   messages: ProjectMessage[];
   notes: ProjectNote[];
+  timeEntries: TimeEntry[];
+  runningTimer: RunningTimer | null;
 
   // Chat unread tracking: project_id → ISO timestamp of last read
   chatLastReadAt: Record<string, string>;
+
+  // GitHub
+  githubRepos: GitHubRepo[];
+  commits: GitCommit[];
+  pullRequests: GitPullRequest[];
+  branches: GitBranch[];
+  actionRuns: GitActionRun[];
+  githubEvents: GitHubEvent[];
+  gitLoading: boolean;
+  gitError: string | null;
+  gitLastFetched: string | null;
 
   detailPanelOpen: boolean;
 
@@ -198,10 +300,26 @@ interface ProjectState {
   addFile: (file: ProjectFile) => void;
   removeFile: (id: string) => void;
   addMessage: (message: ProjectMessage) => void;
+  setTimeEntries: (entries: TimeEntry[]) => void;
+  addTimeEntry: (entry: TimeEntry) => void;
+  updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
+  removeTimeEntry: (id: string) => void;
+  setRunningTimer: (timer: RunningTimer | null) => void;
   markChatRead: (projectId: string) => void;
   getUnreadCount: (projectId: string) => number;
   toggleDetailPanel: () => void;
   setDetailPanelOpen: (open: boolean) => void;
+
+  // GitHub setters
+  setGitHubRepos: (repos: GitHubRepo[]) => void;
+  setCommits: (commits: GitCommit[]) => void;
+  setPullRequests: (prs: GitPullRequest[]) => void;
+  setBranches: (branches: GitBranch[]) => void;
+  setActionRuns: (runs: GitActionRun[]) => void;
+  setGitHubEvents: (events: GitHubEvent[]) => void;
+  setGitLoading: (loading: boolean) => void;
+  setGitError: (error: string | null) => void;
+  setGitLastFetched: (ts: string | null) => void;
 }
 
 // ── Create store ────────────────────────────────────────────────
@@ -221,8 +339,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updates: [],
   messages: [],
   notes: [],
+  timeEntries: [],
+  runningTimer: null,
 
   chatLastReadAt: {},
+
+  // GitHub
+  githubRepos: [],
+  commits: [],
+  pullRequests: [],
+  branches: [],
+  actionRuns: [],
+  githubEvents: [],
+  gitLoading: false,
+  gitError: null,
+  gitLastFetched: null,
 
   detailPanelOpen: true,
 
@@ -298,6 +429,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
 
+  setTimeEntries: (entries) => set({ timeEntries: entries }),
+  addTimeEntry: (entry) =>
+    set((state) => ({ timeEntries: [entry, ...state.timeEntries] })),
+  updateTimeEntry: (id, updates) =>
+    set((state) => ({
+      timeEntries: state.timeEntries.map((e) =>
+        e.id === id ? { ...e, ...updates } : e
+      ),
+    })),
+  removeTimeEntry: (id) =>
+    set((state) => ({ timeEntries: state.timeEntries.filter((e) => e.id !== id) })),
+  setRunningTimer: (timer) => set({ runningTimer: timer }),
+
   markChatRead: (projectId) =>
     set((state) => ({
       chatLastReadAt: { ...state.chatLastReadAt, [projectId]: new Date().toISOString() },
@@ -318,4 +462,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleDetailPanel: () =>
     set((state) => ({ detailPanelOpen: !state.detailPanelOpen })),
   setDetailPanelOpen: (open) => set({ detailPanelOpen: open }),
+
+  // GitHub
+  setGitHubRepos: (repos) => set({ githubRepos: repos }),
+  setCommits: (commits) => set({ commits }),
+  setPullRequests: (prs) => set({ pullRequests: prs }),
+  setBranches: (branches) => set({ branches }),
+  setActionRuns: (runs) => set({ actionRuns: runs }),
+  setGitHubEvents: (events) => set({ githubEvents: events }),
+  setGitLoading: (loading) => set({ gitLoading: loading }),
+  setGitError: (error) => set({ gitError: error }),
+  setGitLastFetched: (ts) => set({ gitLastFetched: ts }),
 }));

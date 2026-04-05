@@ -22,6 +22,8 @@ import {
   StickyNoteIcon,
   PencilIcon,
   Trash2Icon,
+  GitBranchIcon,
+  ClockIcon,
 } from "lucide-react";
 
 const tabs = [
@@ -32,7 +34,9 @@ const tabs = [
   { id: "discussions", label: "Discussions", icon: MessageSquareIcon, segment: "/discussions" },
   { id: "notes", label: "Notes", icon: StickyNoteIcon, segment: "/notes" },
   { id: "files", label: "Files", icon: FileIcon, segment: "/files" },
+  { id: "time", label: "Time", icon: ClockIcon, segment: "/time" },
   { id: "chat", label: "Chat & Threads", icon: MessageCircleIcon, segment: "/chat" },
+  { id: "git", label: "Git", icon: GitBranchIcon, segment: "/git" },
 ] as const;
 
 export default function ProjectDetailLayout({
@@ -44,7 +48,7 @@ export default function ProjectDetailLayout({
   const pathname = usePathname();
   const locale = useLocale();
   const projectId = params.projectId as string;
-  const { projects, addProject, updateProject, setActiveProject, setTasks, setBugs, setTickets, setFiles, setNotes, bugs, tickets, getUnreadCount } = useProjectStore();
+  const { projects, addProject, updateProject, setActiveProject, setTasks, setBugs, setTickets, setFiles, setNotes, setTimeEntries, setRunningTimer, timeEntries, bugs, tickets, getUnreadCount } = useProjectStore();
   const { org, accessToken, loading } = useAuth();
   const orgId = org?.id;
 
@@ -87,7 +91,17 @@ export default function ProjectDetailLayout({
       if (files?.data) setFiles(files.data);
       if (notes?.data) setNotes(notes.data);
     }).catch((err) => console.error("[ProjectLayout]", err));
-  }, [loading, orgId, accessToken, projectId, setTasks, setBugs, setTickets, setFiles, setNotes]);
+
+    // Time entries fetched separately so a failure doesn't block core resources
+    fetch(`${base}/time-entries?limit=100`, { headers })
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => { if (json?.data) setTimeEntries(json.data); })
+      .catch(() => {});
+    fetch(`${base}/time-entries/running`, { headers })
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => { setRunningTimer(json?.data ?? null); })
+      .catch(() => {});
+  }, [loading, orgId, accessToken, projectId, setTasks, setBugs, setTickets, setFiles, setNotes, setTimeEntries, setRunningTimer]);
 
   const project = projects.find((p) => p.id === projectId);
 
@@ -103,7 +117,8 @@ export default function ProjectDetailLayout({
       })
       .then((json) => {
         if (!json?.data) return;
-        if (projects.some((candidate) => candidate.id === projectId)) {
+        const current = useProjectStore.getState().projects;
+        if (current.some((candidate) => candidate.id === projectId)) {
           updateProject(projectId, json.data);
           return;
         }

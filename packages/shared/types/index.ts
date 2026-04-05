@@ -316,6 +316,24 @@ export interface ApiKey {
 }
 
 // ============================================================
+// Time Entries
+// ============================================================
+export interface TimeEntry {
+  id: string;
+  org_id: string;
+  project_id: string;
+  user_id: string;
+  task_id: string | null;
+  description: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  is_manual: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
 // API Response Envelope
 // ============================================================
 export interface ApiResponse<T> {

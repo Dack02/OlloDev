@@ -445,8 +445,67 @@ export const updateNoteSchema = z.object({
 });
 
 // ============================================================
+// Time Entries
+// ============================================================
+export const createTimeEntrySchema = z.object({
+  task_id: z.string().uuid().nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  started_at: z.string().datetime(),
+  ended_at: z.string().datetime().nullable().optional(),
+  duration_seconds: z.number().int().positive().nullable().optional(),
+  is_manual: z.boolean().default(false),
+});
+
+export const updateTimeEntrySchema = z.object({
+  task_id: z.string().uuid().nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  started_at: z.string().datetime().optional(),
+  ended_at: z.string().datetime().nullable().optional(),
+  duration_seconds: z.number().int().positive().nullable().optional(),
+});
+
+export const startTimerSchema = z.object({
+  project_id: z.string().uuid(),
+  task_id: z.string().uuid().nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+});
+
+export const timeEntryFilterSchema = z.object({
+  date_from: z.string().datetime().optional(),
+  date_to: z.string().datetime().optional(),
+  user_id: z.string().uuid().optional(),
+  task_id: z.string().uuid().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+// ============================================================
 // Project Messages
 // ============================================================
 export const createProjectMessageSchema = z.object({
   body: z.string().min(1).max(10000),
+});
+
+// ============================================================
+// GitHub Integration
+// ============================================================
+export const connectRepoSchema = z.object({
+  github_repo_id: z.number().int().positive(),
+  full_name: z.string().min(1).max(500),
+  default_branch: z.string().min(1).max(200).default('main'),
+});
+
+export const gitQuerySchema = z.object({
+  branch: z.string().max(200).optional(),
+  per_page: z.coerce.number().int().min(1).max(100).default(30),
+  state: z.enum(['open', 'closed', 'all']).default('open'),
+});
+
+export const createPrLinkSchema = z.object({
+  pr_number: z.number().int().positive(),
+  pr_title: z.string().min(1).max(500),
+  pr_state: z.enum(['open', 'closed', 'merged']).default('open'),
+  pr_url: z.string().url().max(2000),
+  item_type: z.enum(['task', 'bug', 'ticket']),
+  item_id: z.string().uuid(),
 });

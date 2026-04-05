@@ -17,6 +17,9 @@ import {
   LinkIcon,
   TargetIcon,
   UserRoundIcon,
+  FolderGit2Icon,
+  GitPullRequestIcon,
+  GitCommitIcon,
 } from "lucide-react";
 import { useDiscussionsStore } from "@/stores/discussions-store";
 
@@ -51,8 +54,11 @@ interface ProjectOverviewTabProps {
 }
 
 export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
-  const { tasks, bugs, tickets, files, updates } = useProjectStore();
+  const { tasks, bugs, tickets, files, updates, pullRequests, commits, githubRepos } = useProjectStore();
   const { discussions } = useDiscussionsStore();
+  const hasGitHubRepo = githubRepos.some((r) => r.project_id === project.id);
+  const openPrCount = pullRequests.filter((pr) => pr.state === "open").length;
+  const latestCommit = commits.length > 0 ? commits[0] : null;
 
   const projectTasks = tasks.filter((t) => t.project_id === project.id);
   const projectBugs = bugs.filter((b) => b.project_id === project.id);
@@ -150,14 +156,16 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
                   rel="noreferrer"
                   className="flex items-start gap-2.5 text-accent hover:text-accent-hover"
                 >
-                  <div className="mt-0.5 rounded-md bg-accent-muted p-1.5">
-                    <LinkIcon className="size-3.5" />
+                  <div className="mt-0.5 rounded-md bg-surface-tertiary p-1.5 text-text-secondary">
+                    <FolderGit2Icon className="size-3.5" />
                   </div>
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-text-tertiary">
                       Repository
                     </p>
-                    <p className="mt-0.5 text-[13px] break-all">{project.repository_url}</p>
+                    <p className="mt-0.5 text-[13px] break-all">
+                      {project.repository_url.replace(/^https?:\/\/(www\.)?github\.com\//, '')}
+                    </p>
                   </div>
                 </a>
               )}
@@ -218,7 +226,41 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
             icon={FileIcon}
             color="bg-info-muted text-info"
           />
+          {hasGitHubRepo && (
+            <StatCard
+              label="Open PRs"
+              value={openPrCount}
+              icon={GitPullRequestIcon}
+              color="bg-green-500/10 text-green-600"
+            />
+          )}
         </div>
+
+        {/* Latest commit */}
+        {latestCommit && (
+          <a
+            href={latestCommit.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-4 py-3 rounded-radius-md border border-border-subtle bg-surface-elevated hover:bg-surface-tertiary/40 transition-colors"
+          >
+            <div className="size-8 rounded-radius-sm flex items-center justify-center bg-surface-tertiary text-text-secondary shrink-0">
+              <GitCommitIcon className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                Latest commit
+              </p>
+              <p className="text-[13px] text-text-primary truncate mt-0.5">
+                {latestCommit.message.split("\n")[0]}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] text-text-tertiary">{latestCommit.author_login}</span>
+                <code className="text-[11px] text-text-tertiary font-mono">{latestCommit.sha.slice(0, 7)}</code>
+              </div>
+            </div>
+          </a>
+        )}
 
         {/* Recent activity */}
         {projectUpdates.length > 0 && (
