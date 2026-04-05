@@ -159,6 +159,14 @@ export function GitTab({ projectId }: GitTabProps) {
         hasInstallation={hasInstallation}
         isConfigured={isConfigured}
         onConnected={fetchGitData}
+        onDisconnected={() => {
+          setHasInstallation(false);
+          setGitHubRepos([]);
+          setCommits([]);
+          setPullRequests([]);
+          setBranches([]);
+          setActionRuns([]);
+        }}
       />
     );
   }

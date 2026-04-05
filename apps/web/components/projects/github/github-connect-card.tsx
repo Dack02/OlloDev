@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FolderGit2Icon, LinkIcon, AlertCircleIcon } from "lucide-react";
+import { FolderGit2Icon, LinkIcon, AlertCircleIcon, UnplugIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
 import { RepoPicker } from "./repo-picker";
@@ -13,6 +13,7 @@ interface GitHubConnectCardProps {
   /** null = unknown, true = configured, false = not configured */
   isConfigured: boolean | null;
   onConnected?: () => void;
+  onDisconnected?: () => void;
 }
 
 export function GitHubConnectCard({
@@ -20,9 +21,11 @@ export function GitHubConnectCard({
   hasInstallation,
   isConfigured,
   onConnected,
+  onDisconnected,
 }: GitHubConnectCardProps) {
   const { org, accessToken } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const handleInstall = async () => {
@@ -47,6 +50,31 @@ export function GitHubConnectCard({
       notify.error("GitHub setup", "Could not reach the API server");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!org?.id || !accessToken) return;
+    setDisconnecting(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${org.id}/github/installation`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (!res.ok) {
+        const json = await res.json();
+        notify.error("Disconnect failed", json.error?.message ?? "Unknown error");
+        return;
+      }
+      notify.success("GitHub disconnected", "The GitHub App has been disconnected.");
+      onDisconnected?.();
+    } catch (e) {
+      notify.error("Disconnect failed", "Could not reach the API server");
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -96,10 +124,22 @@ export function GitHubConnectCard({
             : "Install the OlloDev GitHub App on your organization to get started with Git integration."}
         </p>
         {hasInstallation ? (
-          <Button onClick={() => setPickerOpen(true)} size="sm">
-            <LinkIcon className="size-3.5 mr-1.5" />
-            Connect repository
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setPickerOpen(true)} size="sm">
+              <LinkIcon className="size-3.5 mr-1.5" />
+              Connect repository
+            </Button>
+            <Button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              size="sm"
+              variant="outline"
+              className="text-text-tertiary hover:text-red-600"
+            >
+              <UnplugIcon className="size-3.5 mr-1.5" />
+              {disconnecting ? "Disconnecting..." : "Disconnect"}
+            </Button>
+          </div>
         ) : (
           <Button onClick={handleInstall} disabled={loading} size="sm">
             <FolderGit2Icon className="size-3.5 mr-1.5" />
