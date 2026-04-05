@@ -133,5 +133,5 @@ export async function getOctokitForProject(projectId: string): Promise<{ octokit
 // ============================================================
 
 export function getInstallUrl(state: string): string {
-  return `https://github.com/apps/ollodev/installations/new?state=${encodeURIComponent(state)}`;
+  return `https://github.com/apps/ollodevapp/installations/new?state=${encodeURIComponent(state)}`;
 }
