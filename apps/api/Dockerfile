@@ -32,7 +32,7 @@ COPY tsconfig.json ./tsconfig.json
 RUN pnpm turbo run build --filter=@ollo-dev/api...
 
 # Prune dev dependencies
-RUN pnpm prune --prod
+RUN pnpm prune --prod --config.confirmModulesPurge=false
 
 # ============================================================
 # Stage 3: runner
