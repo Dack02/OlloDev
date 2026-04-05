@@ -2,19 +2,23 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FolderGit2Icon, LinkIcon } from "lucide-react";
+import { FolderGit2Icon, LinkIcon, AlertCircleIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { notify } from "@/lib/notify";
 import { RepoPicker } from "./repo-picker";
 
 interface GitHubConnectCardProps {
   projectId: string;
   hasInstallation: boolean;
+  /** null = unknown, true = configured, false = not configured */
+  isConfigured: boolean | null;
   onConnected?: () => void;
 }
 
 export function GitHubConnectCard({
   projectId,
   hasInstallation,
+  isConfigured,
   onConnected,
 }: GitHubConnectCardProps) {
   const { org, accessToken } = useAuth();
@@ -30,15 +34,52 @@ export function GitHubConnectCard({
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const json = await res.json();
+      if (!res.ok) {
+        const msg = json.error?.message ?? "Failed to start GitHub installation";
+        notify.error("GitHub setup", msg);
+        return;
+      }
       if (json.data?.url) {
         window.location.href = json.data.url;
       }
     } catch (e) {
       console.error("[GitHubConnect] install error", e);
+      notify.error("GitHub setup", "Could not reach the API server");
     } finally {
       setLoading(false);
     }
   };
+
+  // GitHub App not configured on the server
+  if (isConfigured === false) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="size-14 rounded-2xl bg-surface-tertiary flex items-center justify-center mb-4">
+          <FolderGit2Icon className="size-7 text-text-secondary" />
+        </div>
+        <h3 className="text-[15px] font-semibold text-text-primary mb-1">
+          GitHub Integration
+        </h3>
+        <p className="text-[13px] text-text-secondary max-w-sm mb-4">
+          The GitHub App has not been configured on the server yet. An administrator needs to set the
+          following environment variables:
+        </p>
+        <div className="rounded-radius-md border border-border-subtle bg-surface-elevated p-4 text-left max-w-sm w-full">
+          <code className="text-[12px] text-text-secondary leading-relaxed block space-y-1">
+            <span className="block">GITHUB_APP_ID</span>
+            <span className="block">GITHUB_APP_PRIVATE_KEY</span>
+            <span className="block">GITHUB_CLIENT_ID</span>
+            <span className="block">GITHUB_CLIENT_SECRET</span>
+            <span className="block">GITHUB_WEBHOOK_SECRET</span>
+          </code>
+        </div>
+        <div className="flex items-center gap-1.5 mt-4 text-[12px] text-text-tertiary">
+          <AlertCircleIcon className="size-3.5" />
+          <span>See the GitHub Integration docs for setup instructions</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

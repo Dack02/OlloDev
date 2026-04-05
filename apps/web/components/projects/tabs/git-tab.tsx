@@ -48,6 +48,7 @@ export function GitTab({ projectId }: GitTabProps) {
   } = useProjectStore();
 
   const [hasInstallation, setHasInstallation] = useState(false);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [installationChecked, setInstallationChecked] = useState(false);
   const [expanded, setExpanded] = useState<Record<Section, boolean>>({
     commits: true,
@@ -68,7 +69,10 @@ export function GitTab({ projectId }: GitTabProps) {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
       .then((r) => r.json())
-      .then((json) => setHasInstallation(!!json.data))
+      .then((json) => {
+        setHasInstallation(!!json.data);
+        setIsConfigured(json.meta?.is_configured ?? null);
+      })
       .catch(() => {})
       .finally(() => setInstallationChecked(true));
   }, [orgId, accessToken]);
@@ -143,6 +147,7 @@ export function GitTab({ projectId }: GitTabProps) {
       <GitHubConnectCard
         projectId={projectId}
         hasInstallation={hasInstallation}
+        isConfigured={isConfigured}
         onConnected={fetchGitData}
       />
     );

@@ -107,7 +107,7 @@ authedApp.openapi(getInstallationRoute, async (c) => {
 
   if (error) return internalError(c, error.message);
 
-  return c.json({ data });
+  return c.json({ data, meta: { is_configured: isGitHubConfigured() } });
 });
 
 // ── DELETE /installation — Disconnect GitHub ────────────────
