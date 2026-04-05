@@ -14,6 +14,8 @@ import { useOrgMembers } from "@/hooks/use-org-members";
 import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 import { CreateBugDialog } from "@/components/projects/create-bug-dialog";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   BugIcon,
   CircleIcon,
@@ -29,6 +31,7 @@ import {
   UserIcon,
   TagIcon,
   TrashIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 
 const statusConfig: Record<
@@ -75,6 +78,7 @@ export function BugsTab({ projectId }: BugsTabProps) {
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
   const members = useOrgMembers();
+  const params = useParams();
   const [statusFilter, setStatusFilter] = useState("all");
 
   const handleUpdate = async (bugId: string, updates: Partial<ProjectBug>) => {
@@ -354,6 +358,18 @@ export function BugsTab({ projectId }: BugsTabProps) {
                   })}
                 </span>
               </DetailRow>
+
+              {activeBug.discussion_id && (
+                <DetailRow label="Thread">
+                  <Link
+                    href={`/${params.locale}/projects/${projectId}/discussions?id=${activeBug.discussion_id}`}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline"
+                  >
+                    <MessageSquareIcon className="size-3" />
+                    View thread
+                  </Link>
+                </DetailRow>
+              )}
             </div>
 
             {/* Delete button */}

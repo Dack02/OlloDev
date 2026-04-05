@@ -408,3 +408,27 @@ body {
 .focus-ring:focus-visible {
   box-shadow: 0 0 0 2px var(--surface-primary), 0 0 0 4px var(--accent);
 }
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch target minimum — apply to interactive mobile elements */
+@media (max-width: 767px) {
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Opt out for inline elements that shouldn't be enlarged */
+  .touch-target-auto {
+    min-height: auto;
+    min-width: auto;
+  }
+}

@@ -2,6 +2,8 @@
 
 import { useProjectStore, type ProjectTask } from "@/stores/project-store";
 import { DetailPanel } from "@/components/layout/detail-panel";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   CheckCircle2Icon,
   CircleIcon,
@@ -14,6 +16,7 @@ import {
   CalendarIcon,
   TagIcon,
   UserIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 
 const statusConfig = {
@@ -42,6 +45,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 
 export function TaskDetailPanel() {
   const { activeTaskId, tasks, detailPanelOpen, setDetailPanelOpen, setActiveTask } = useProjectStore();
+  const params = useParams();
 
   const task = tasks.find((t) => t.id === activeTaskId);
 
@@ -165,6 +169,18 @@ export function TaskDetailPanel() {
               })}
             </span>
           </DetailRow>
+
+          {task.discussion_id && (
+            <DetailRow label="Thread">
+              <Link
+                href={`/${params.locale}/projects/${task.project_id}/discussions?id=${task.discussion_id}`}
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline"
+              >
+                <MessageSquareIcon className="size-3" />
+                View thread
+              </Link>
+            </DetailRow>
+          )}
         </div>
       </div>
     </DetailPanel>

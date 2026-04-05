@@ -28,7 +28,7 @@ function FilterBarRoot({ children, className }: FilterBarProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b border-border-subtle shrink-0",
+        "flex items-center justify-between border-b border-border-subtle shrink-0 overflow-x-auto scrollbar-hide",
         className
       )}
     >
@@ -55,7 +55,7 @@ interface TabsProps {
 
 function Tabs({ items, value, onChange, className }: TabsProps) {
   return (
-    <div className={cn("flex items-center gap-0.5 pl-2", className)}>
+    <div className={cn("flex items-center gap-0.5 pl-2 min-w-max", className)}>
       {items.map((item) => {
         const isActive = item.value === value;
         return (

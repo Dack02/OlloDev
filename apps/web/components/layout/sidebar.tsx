@@ -12,6 +12,7 @@ import {
   BarChart3Icon,
   UsersIcon,
   SettingsIcon,
+  CodeIcon,
   PlusIcon,
   SearchIcon,
   ChevronDownIcon,
@@ -27,6 +28,7 @@ import {
 import { useProjectStore } from "@/stores/project-store";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { useAuth } from "@/lib/auth-context";
+import { useMobileSidebar } from "@/hooks/useMobileSidebar";
 
 interface NavItem {
   key: string;
@@ -35,13 +37,14 @@ interface NavItem {
 }
 
 const mainNavItems: NavItem[] = [
-  { key: "chat", href: "/chat", icon: MessageCircleIcon },
   { key: "threads", href: "/threads", icon: MessagesSquareIcon },
+  { key: "chat", href: "/chat", icon: MessageCircleIcon },
   { key: "wiki", href: "/wiki", icon: BookOpenIcon },
   { key: "tickets", href: "/tickets", icon: TicketIcon },
 ];
 
 const bottomNavItems: NavItem[] = [
+  { key: "apiDocs", href: "/api-docs", icon: CodeIcon },
   { key: "members", href: "/admin/members", icon: UsersIcon },
   { key: "admin", href: "/admin", icon: BarChart3Icon },
   { key: "settings", href: "/settings", icon: SettingsIcon },
@@ -71,7 +74,7 @@ function getModeLabel(mode: SidebarMode) {
   }
 }
 
-export function Sidebar() {
+function SidebarContent({ expanded, onLinkClick }: { expanded: boolean; onLinkClick?: () => void }) {
   const t = useTranslations("nav");
   const locale = useLocale();
   const pathname = usePathname();
@@ -79,32 +82,7 @@ export function Sidebar() {
   const { projects, setProjects } = useProjectStore();
   const { org, accessToken, loading } = useAuth();
   const orgId = org?.id;
-
-  const { mode, isHovered, setMode, setHovered } = useSidebarStore();
-  const expanded = getIsExpanded(mode, isHovered);
-
-  // Debounced mouse-leave for auto mode
-  const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleMouseEnter = useCallback(() => {
-    if (leaveTimeout.current) {
-      clearTimeout(leaveTimeout.current);
-      leaveTimeout.current = null;
-    }
-    setHovered(true);
-  }, [setHovered]);
-
-  const handleMouseLeave = useCallback(() => {
-    leaveTimeout.current = setTimeout(() => {
-      setHovered(false);
-    }, 150);
-  }, [setHovered]);
-
-  useEffect(() => {
-    return () => {
-      if (leaveTimeout.current) clearTimeout(leaveTimeout.current);
-    };
-  }, []);
+  const { mode, setMode } = useSidebarStore();
 
   useEffect(() => {
     if (loading || !orgId || !accessToken) return;
@@ -130,14 +108,7 @@ export function Sidebar() {
   const ModeIcon = getModeIcon(mode);
 
   return (
-    <aside
-      className={`flex h-full flex-col bg-surface-secondary border-r border-border-subtle transition-[width] duration-200 ${
-        expanded ? "w-[260px]" : "w-[52px]"
-      }`}
-      style={{ transitionTimingFunction: "var(--ease-default)" }}
-      onMouseEnter={mode === "auto" ? handleMouseEnter : undefined}
-      onMouseLeave={mode === "auto" ? handleMouseLeave : undefined}
-    >
+    <>
       {/* Header — org name + search */}
       <div
         className="flex items-center justify-between px-3 py-3"
@@ -175,6 +146,7 @@ export function Sidebar() {
               key={item.key}
               href={`/${locale}${item.href}`}
               title={expanded ? undefined : t(item.key)}
+              onClick={onLinkClick}
               className={`group relative flex items-center rounded-radius-sm text-[13px] font-medium transition-all duration-[120ms] ${
                 expanded
                   ? "gap-2.5 px-2.5 py-[7px]"
@@ -185,7 +157,6 @@ export function Sidebar() {
                   : "text-text-secondary hover:bg-surface-tertiary/50 hover:text-text-primary"
               }`}
             >
-              {/* Active indicator bar */}
               {isActive && (
                 <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent" />
               )}
@@ -227,6 +198,7 @@ export function Sidebar() {
               </button>
               <Link
                 href={`/${locale}/projects`}
+                onClick={onLinkClick}
                 className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary hover:text-text-secondary transition-colors"
               >
                 {t("projects")}
@@ -254,6 +226,7 @@ export function Sidebar() {
                   <Link
                     key={project.id}
                     href={`/${locale}/projects/${project.id}`}
+                    onClick={onLinkClick}
                     className={`group relative flex items-center gap-2.5 rounded-radius-sm px-2.5 py-[7px] text-[13px] transition-all duration-[120ms] ${
                       isActive
                         ? "bg-accent-muted text-accent"
@@ -292,6 +265,7 @@ export function Sidebar() {
               key={item.key}
               href={`/${locale}${item.href}`}
               title={expanded ? undefined : t(item.key)}
+              onClick={onLinkClick}
               className={`group relative flex items-center rounded-radius-sm text-[13px] font-medium transition-all duration-[120ms] ${
                 expanded
                   ? "gap-2.5 px-2.5 py-[7px]"
@@ -321,11 +295,11 @@ export function Sidebar() {
           );
         })}
 
-        {/* Mode toggle */}
+        {/* Mode toggle — hidden on mobile (no need for sidebar modes) */}
         <button
           onClick={cycleMode}
           title={getModeLabel(mode)}
-          className={`group flex items-center rounded-radius-sm text-[13px] font-medium text-text-tertiary hover:text-accent hover:bg-accent-muted transition-all duration-[120ms] w-full ${
+          className={`hidden md:flex group items-center rounded-radius-sm text-[13px] font-medium text-text-tertiary hover:text-accent hover:bg-accent-muted transition-all duration-[120ms] w-full ${
             expanded
               ? "gap-2.5 px-2.5 py-[7px]"
               : "justify-center px-0 py-[7px]"
@@ -339,6 +313,70 @@ export function Sidebar() {
           )}
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar() {
+  const { mode, isHovered, setHovered } = useSidebarStore();
+  const expanded = getIsExpanded(mode, isHovered);
+  const { isOpen, close } = useMobileSidebar();
+
+  // Debounced mouse-leave for auto mode
+  const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (leaveTimeout.current) {
+      clearTimeout(leaveTimeout.current);
+      leaveTimeout.current = null;
+    }
+    setHovered(true);
+  }, [setHovered]);
+
+  const handleMouseLeave = useCallback(() => {
+    leaveTimeout.current = setTimeout(() => {
+      setHovered(false);
+    }, 150);
+  }, [setHovered]);
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimeout.current) clearTimeout(leaveTimeout.current);
+    };
+  }, []);
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside
+        className={`hidden md:flex h-full flex-col bg-surface-secondary border-r border-border-subtle transition-[width] duration-200 ${
+          expanded ? "w-[220px]" : "w-[52px]"
+        }`}
+        style={{ transitionTimingFunction: "var(--ease-default)" }}
+        onMouseEnter={mode === "auto" ? handleMouseEnter : undefined}
+        onMouseLeave={mode === "auto" ? handleMouseLeave : undefined}
+      >
+        <SidebarContent expanded={expanded} />
+      </aside>
+
+      {/* Mobile sidebar — slide-over drawer */}
+      {/* Backdrop */}
+      <div
+        className={`md:hidden fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 ${
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={close}
+        aria-hidden="true"
+      />
+      {/* Drawer */}
+      <aside
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-[220px] flex flex-col bg-surface-secondary transform transition-transform duration-200 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ transitionTimingFunction: "var(--ease-default)" }}
+      >
+        <SidebarContent expanded={true} onLinkClick={close} />
+      </aside>
+    </>
   );
 }

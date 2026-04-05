@@ -10,6 +10,7 @@ import type {
   UserStatus,
   Theme,
   DiscussionCategory,
+  DiscussionStatus,
   NotificationType,
 } from '../constants/index.js';
 
@@ -118,6 +119,16 @@ export interface Discussion {
   tags: string[];
   upvotes: number;
   reply_count: number;
+  status: DiscussionStatus;
+  source_type: string | null;
+  source_id: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  close_reason: string | null;
+  assignee_id: string | null;
+  priority: string | null;
+  requester_name: string | null;
+  requester_email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -187,6 +198,64 @@ export interface ProjectNote {
   author_id: string | null;
   is_pinned: boolean;
   color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// Project Bugs
+// ============================================================
+export interface ProjectBug {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  severity: string;
+  assignee_id: string | null;
+  reporter_id: string | null;
+  labels: string[];
+  discussion_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// Project Tasks
+// ============================================================
+export interface ProjectTask {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  type: string;
+  status: string;
+  priority: string;
+  assignee_id: string | null;
+  due_at: string | null;
+  tags: string[];
+  sort_order: number;
+  discussion_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// Project Tickets
+// ============================================================
+export interface ProjectTicket {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  type: string;
+  requester_name: string | null;
+  requester_email: string | null;
+  assignee_id: string | null;
+  discussion_id: string | null;
   created_at: string;
   updated_at: string;
 }

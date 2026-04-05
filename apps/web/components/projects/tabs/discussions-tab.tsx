@@ -7,17 +7,19 @@ import {
   PinIcon,
   LockIcon,
   ThumbsUpIcon,
+  CheckCircle2Icon,
+  ArchiveIcon,
 } from "lucide-react";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useDiscussionsStore } from "@/stores/discussions-store";
+import { useDiscussionsStore, type StatusFilter } from "@/stores/discussions-store";
 import { useAuth } from "@/lib/auth-context";
 import { CreateDiscussionDialog } from "@/components/discussions/create-discussion-dialog";
 import { DiscussionDetail } from "@/components/discussions/discussion-detail";
 import { Button } from "@/components/ui/button";
 import type { Discussion } from "@ollo-dev/shared/types";
 
-const CATEGORIES = ["all", "general", "ideas", "bugs", "announcements"] as const;
+const CATEGORIES = ["all", "general", "ideas", "bugs", "announcements", "tickets"] as const;
 type CategoryFilter = (typeof CATEGORIES)[number];
 
 function timeAgo(dateStr: string): string {
@@ -35,9 +37,16 @@ interface DiscussionsTabProps {
   projectId: string;
 }
 
+const STATUS_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "open", label: "Open" },
+  { value: "closed", label: "Closed" },
+  { value: "archived", label: "Archived" },
+];
+
 export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
   const t = useTranslations("discussions");
-  const { discussions, activeDiscussionId, setDiscussions, setActiveDiscussion } =
+  const { discussions, activeDiscussionId, mergeDiscussions, setActiveDiscussion, statusFilter, setStatusFilter } =
     useDiscussionsStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
@@ -52,13 +61,13 @@ export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
       setLoading(true);
       setError(null);
       try {
-        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions?project_id=${projectId}`;
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions?project_id=${projectId}&include_archived=true`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!res.ok) throw new Error("Failed to fetch discussions");
         const json = await res.json();
-        setDiscussions(json.data ?? json);
+        mergeDiscussions(json.data ?? json);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
       } finally {
@@ -66,16 +75,24 @@ export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
       }
     };
     fetchDiscussions();
-  }, [orgId, accessToken, projectId, setDiscussions]);
+  }, [orgId, accessToken, projectId, mergeDiscussions]);
 
   const projectDiscussions = discussions.filter(
     (d) => d.project_id === projectId
   );
 
+  // Apply status filter
+  let statusFiltered = projectDiscussions;
+  if (statusFilter === "all") {
+    statusFiltered = projectDiscussions.filter((d) => d.status !== "archived");
+  } else {
+    statusFiltered = projectDiscussions.filter((d) => d.status === statusFilter);
+  }
+
   const filtered =
     categoryFilter === "all"
-      ? projectDiscussions
-      : projectDiscussions.filter((d) => d.category === categoryFilter);
+      ? statusFiltered
+      : statusFiltered.filter((d) => d.category === categoryFilter);
 
   const pinned = filtered.filter((d) => d.is_pinned);
   const unpinned = filtered.filter((d) => !d.is_pinned);
@@ -103,6 +120,21 @@ export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
             trigger={<Button size="sm">New</Button>}
           />
         </div>
+
+        <FilterBar>
+          <FilterBar.Tabs
+            items={STATUS_TABS.map((tab) => ({
+              value: tab.value,
+              label: tab.label,
+              count:
+                tab.value === "all"
+                  ? projectDiscussions.filter((d) => d.status !== "archived").length
+                  : projectDiscussions.filter((d) => d.status === tab.value).length,
+            }))}
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
+          />
+        </FilterBar>
 
         <FilterBar>
           <FilterBar.Tabs
@@ -134,7 +166,7 @@ export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
                 onClick={() => setActiveDiscussion(discussion.id)}
                 className={`w-full text-left px-4 py-3 transition-all duration-150 hover:bg-surface-secondary/60 ${
                   activeDiscussionId === discussion.id ? "bg-accent-muted" : ""
-                }`}
+                } ${discussion.status === "archived" ? "opacity-60" : discussion.status === "closed" ? "opacity-75" : ""}`}
               >
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
@@ -144,6 +176,12 @@ export function DiscussionsTab({ projectId }: DiscussionsTabProps) {
                       )}
                       {discussion.is_locked && (
                         <LockIcon className="size-3 text-text-tertiary shrink-0" />
+                      )}
+                      {discussion.status === "closed" && (
+                        <CheckCircle2Icon className="size-3 text-success shrink-0" />
+                      )}
+                      {discussion.status === "archived" && (
+                        <ArchiveIcon className="size-3 text-text-tertiary shrink-0" />
                       )}
                       <span className="text-[13px] font-medium text-text-primary line-clamp-1">
                         {discussion.title}

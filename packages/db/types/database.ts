@@ -269,48 +269,81 @@ export type Database = {
       }
       discussions: {
         Row: {
+          assignee_id: string | null
           author_id: string | null
           body: string | null
           body_html: string | null
           category: string | null
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           id: string
           is_locked: boolean
           is_pinned: boolean
           org_id: string
+          priority: string | null
+          project_id: string | null
           reply_count: number
+          requester_email: string | null
+          requester_name: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string
           tags: string[]
           title: string
           updated_at: string
           upvotes: number
         }
         Insert: {
+          assignee_id?: string | null
           author_id?: string | null
           body?: string | null
           body_html?: string | null
           category?: string | null
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           id?: string
           is_locked?: boolean
           is_pinned?: boolean
           org_id: string
+          priority?: string | null
+          project_id?: string | null
           reply_count?: number
+          requester_email?: string | null
+          requester_name?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
           tags?: string[]
           title: string
           updated_at?: string
           upvotes?: number
         }
         Update: {
+          assignee_id?: string | null
           author_id?: string | null
           body?: string | null
           body_html?: string | null
           category?: string | null
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           id?: string
           is_locked?: boolean
           is_pinned?: boolean
           org_id?: string
+          priority?: string | null
+          project_id?: string | null
           reply_count?: number
+          requester_email?: string | null
+          requester_name?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
           tags?: string[]
           title?: string
           updated_at?: string
@@ -322,6 +355,198 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_bugs: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          description: string | null
+          status: string
+          priority: string
+          severity: string
+          assignee_id: string | null
+          reporter_id: string | null
+          labels: string[]
+          discussion_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          description?: string | null
+          status?: string
+          priority?: string
+          severity?: string
+          assignee_id?: string | null
+          reporter_id?: string | null
+          labels?: string[]
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          description?: string | null
+          status?: string
+          priority?: string
+          severity?: string
+          assignee_id?: string | null
+          reporter_id?: string | null
+          labels?: string[]
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_bugs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_bugs_discussion_id_fkey"
+            columns: ["discussion_id"]
+            isOneToOne: false
+            referencedRelation: "discussions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_tasks: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          description: string | null
+          type: string
+          status: string
+          priority: string
+          assignee_id: string | null
+          due_at: string | null
+          tags: string[]
+          sort_order: number
+          discussion_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          description?: string | null
+          type?: string
+          status?: string
+          priority?: string
+          assignee_id?: string | null
+          due_at?: string | null
+          tags?: string[]
+          sort_order?: number
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          description?: string | null
+          type?: string
+          status?: string
+          priority?: string
+          assignee_id?: string | null
+          due_at?: string | null
+          tags?: string[]
+          sort_order?: number
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_discussion_id_fkey"
+            columns: ["discussion_id"]
+            isOneToOne: false
+            referencedRelation: "discussions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_tickets: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          description: string | null
+          status: string
+          priority: string
+          type: string
+          requester_name: string | null
+          requester_email: string | null
+          assignee_id: string | null
+          discussion_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          description?: string | null
+          status?: string
+          priority?: string
+          type?: string
+          requester_name?: string | null
+          requester_email?: string | null
+          assignee_id?: string | null
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          description?: string | null
+          status?: string
+          priority?: string
+          type?: string
+          requester_name?: string | null
+          requester_email?: string | null
+          assignee_id?: string | null
+          discussion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tickets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tickets_discussion_id_fkey"
+            columns: ["discussion_id"]
+            isOneToOne: false
+            referencedRelation: "discussions"
             referencedColumns: ["id"]
           },
         ]

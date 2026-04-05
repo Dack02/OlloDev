@@ -1,59 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
-  useProjectStore,
-  type ProjectTicket,
-  type TicketStatus,
-  type TicketType,
-} from "@/stores/project-store";
+  useDiscussionsStore,
+  type StatusFilter,
+} from "@/stores/discussions-store";
 import { DetailPanel } from "@/components/layout/detail-panel";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { CreateTicketDialog } from "@/components/projects/create-ticket-dialog";
 import { useAuth } from "@/lib/auth-context";
 import { useOrgMembers } from "@/hooks/use-org-members";
+import { useProjectStore } from "@/stores/project-store";
 import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
+import type { Discussion } from "@ollo-dev/shared/types";
 import {
   CircleIcon,
-  ClockIcon,
-  CircleDotIcon,
   CheckCircle2Icon,
-  XCircleIcon,
+  ArchiveIcon,
   TicketIcon,
   ArrowUpIcon,
   ArrowRightIcon,
   ArrowDownIcon,
   AlertCircleIcon,
-  MessageSquareIcon,
+  HelpCircleIcon,
   BugIcon,
   LightbulbIcon,
-  HelpCircleIcon,
+  MessageSquareIcon,
   UserIcon,
-  MailIcon,
   Trash2Icon,
 } from "lucide-react";
 
-const statusConfig: Record<
-  TicketStatus,
-  { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }
-> = {
+const statusConfig = {
   open: { label: "Open", icon: CircleIcon, color: "text-accent", bg: "bg-accent-muted" },
-  pending: { label: "Pending", icon: ClockIcon, color: "text-warning", bg: "bg-warning-muted" },
-  in_progress: { label: "In progress", icon: CircleDotIcon, color: "text-info", bg: "bg-info-muted" },
-  resolved: { label: "Resolved", icon: CheckCircle2Icon, color: "text-success", bg: "bg-success-muted" },
-  closed: { label: "Closed", icon: XCircleIcon, color: "text-text-tertiary", bg: "bg-surface-tertiary" },
-};
-
-const typeConfig: Record<
-  TicketType,
-  { label: string; icon: React.ComponentType<{ className?: string }>; color: string }
-> = {
-  question: { label: "Question", icon: HelpCircleIcon, color: "text-info" },
-  bug: { label: "Bug", icon: BugIcon, color: "text-error" },
-  feature: { label: "Feature", icon: LightbulbIcon, color: "text-warning" },
-  task: { label: "Task", icon: CircleDotIcon, color: "text-accent" },
-};
+  closed: { label: "Closed", icon: CheckCircle2Icon, color: "text-success", bg: "bg-success-muted" },
+  archived: { label: "Archived", icon: ArchiveIcon, color: "text-text-tertiary", bg: "bg-surface-tertiary" },
+} as const;
 
 const priorityConfig = {
   low: { label: "Low", icon: ArrowDownIcon, color: "text-text-tertiary" },
@@ -61,6 +45,18 @@ const priorityConfig = {
   high: { label: "High", icon: ArrowUpIcon, color: "text-warning" },
   urgent: { label: "Urgent", icon: AlertCircleIcon, color: "text-error" },
 } as const;
+
+const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  question: HelpCircleIcon,
+  bug: BugIcon,
+  feature: LightbulbIcon,
+  task: TicketIcon,
+};
+
+function getTicketType(discussion: Discussion): string {
+  const knownTypes = ["question", "bug", "feature", "task"];
+  return discussion.tags.find((t) => knownTypes.includes(t)) ?? "task";
+}
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -75,95 +71,113 @@ interface TicketsTabProps {
   projectId: string;
 }
 
+const STATUS_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "open", label: "Open" },
+  { value: "closed", label: "Closed" },
+];
+
 export function TicketsTab({ projectId }: TicketsTabProps) {
-  const { tickets, activeTicketId, setActiveTicket, detailPanelOpen, setDetailPanelOpen, updateTicket, setTickets } =
-    useProjectStore();
+  const {
+    discussions,
+    activeDiscussionId,
+    setActiveDiscussion,
+    setDiscussions,
+    mergeDiscussions,
+    updateDiscussion,
+  } = useDiscussionsStore();
+  const { detailPanelOpen, setDetailPanelOpen } = useProjectStore();
   const { org, accessToken } = useAuth();
+  const orgId = org?.id;
   const members = useOrgMembers();
-  const [statusFilter, setStatusFilter] = useState("all");
+  const params = useParams();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [loading, setLoading] = useState(false);
 
-  const projectTickets = tickets.filter((t) => t.project_id === projectId);
+  useEffect(() => {
+    if (!orgId || !accessToken) return;
 
-  const filterTabs = [
-    { value: "all", label: "All", count: projectTickets.length },
-    {
-      value: "open",
-      label: "Open",
-      count: projectTickets.filter(
-        (t) => t.status !== "resolved" && t.status !== "closed"
-      ).length,
-    },
-    {
-      value: "resolved",
-      label: "Resolved",
-      count: projectTickets.filter((t) => t.status === "resolved").length,
-    },
-  ];
-
-  const filtered =
-    statusFilter === "all"
-      ? projectTickets
-      : statusFilter === "open"
-      ? projectTickets.filter(
-          (t) => t.status !== "resolved" && t.status !== "closed"
-        )
-      : projectTickets.filter((t) => t.status === statusFilter);
-
-  const activeTicket = tickets.find((t) => t.id === activeTicketId);
-
-  const handleUpdate = async (
-    ticketId: string,
-    updates: Partial<ProjectTicket>
-  ) => {
-    // Try API call if authenticated
-    if (org?.id && accessToken) {
+    const fetchTicketDiscussions = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${org.id}/projects/${projectId}/tickets/${ticketId}`,
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions?category=tickets&project_id=${projectId}&include_archived=true`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch tickets");
+        const json = await res.json();
+        mergeDiscussions(json.data ?? json);
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTicketDiscussions();
+  }, [orgId, accessToken, projectId, mergeDiscussions]);
+
+  const tickets = discussions.filter(
+    (d) => d.category === "tickets" && d.project_id === projectId
+  );
+
+  let filtered = tickets;
+  if (statusFilter === "all") {
+    filtered = tickets.filter((d) => d.status !== "archived");
+  } else {
+    filtered = tickets.filter((d) => d.status === statusFilter);
+  }
+
+  const statusTabItems = STATUS_TABS.map((tab) => ({
+    value: tab.value,
+    label: tab.label,
+    count:
+      tab.value === "all"
+        ? tickets.filter((d) => d.status !== "archived").length
+        : tickets.filter((d) => d.status === tab.value).length,
+  }));
+
+  const activeTicket = activeDiscussionId
+    ? tickets.find((d) => d.id === activeDiscussionId)
+    : null;
+
+  const handleUpdate = async (ticketId: string, updates: Partial<Discussion>) => {
+    updateDiscussion(ticketId, updates);
+    if (orgId && accessToken) {
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${ticketId}`,
           {
             method: "PATCH",
             headers: {
-              "Authorization": `Bearer ${accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify(updates),
           }
         );
-        if (!response.ok) {
-          notify.error("Update failed", "Could not update ticket");
-        }
-      } catch (error) {
-        notify.error("Update failed", "Could not reach the server");
+      } catch {
+        notify.error("Update failed", "Could not update ticket");
       }
     }
-    // Always update local store
-    updateTicket(ticketId, updates);
   };
 
   const handleDelete = async (ticketId: string) => {
-    // Try API call if authenticated
-    if (org?.id && accessToken) {
+    if (orgId && accessToken) {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${org.id}/projects/${projectId}/tickets/${ticketId}`,
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${ticketId}`,
           {
             method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${accessToken}`,
-            },
+            headers: { Authorization: `Bearer ${accessToken}` },
           }
         );
-        if (!response.ok) {
-          notify.error("Delete failed", "Could not delete ticket");
-        }
-      } catch (error) {
-        notify.error("Delete failed", "Could not reach the server");
+      } catch {
+        notify.error("Delete failed", "Could not delete ticket");
       }
     }
-    // Remove from local store
-    setTickets(tickets.filter((t) => t.id !== ticketId));
+    setDiscussions(discussions.filter((d) => d.id !== ticketId));
     setDetailPanelOpen(false);
-    setActiveTicket(null);
+    setActiveDiscussion(null);
   };
 
   return (
@@ -172,9 +186,9 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <FilterBar>
           <FilterBar.Tabs
-            items={filterTabs}
+            items={statusTabItems}
             value={statusFilter}
-            onChange={setStatusFilter}
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
           />
           <FilterBar.Actions>
             <CreateTicketDialog projectId={projectId} />
@@ -182,7 +196,10 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
         </FilterBar>
 
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {loading && (
+            <div className="p-6 text-center text-text-tertiary text-[13px]">Loading...</div>
+          )}
+          {!loading && filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6">
               <div className="size-10 rounded-xl bg-surface-secondary flex items-center justify-center mb-3">
                 <TicketIcon className="size-4 text-text-tertiary" />
@@ -190,45 +207,56 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
               <p className="text-[13px] text-text-tertiary">No tickets found</p>
             </div>
           ) : (
+            !loading &&
             filtered.map((ticket) => {
-              const status = statusConfig[ticket.status];
-              const type = typeConfig[ticket.type];
+              const status = statusConfig[ticket.status as keyof typeof statusConfig] ?? statusConfig.open;
               const StatusIcon = status.icon;
-              const TypeIcon = type.icon;
-              const isActive = activeTicketId === ticket.id;
+              const ticketType = getTicketType(ticket);
+              const TypeIcon = typeIcons[ticketType] ?? TicketIcon;
+              const isActive = activeDiscussionId === ticket.id;
 
               return (
                 <button
                   key={ticket.id}
                   onClick={() => {
-                    setActiveTicket(ticket.id);
+                    setActiveDiscussion(ticket.id);
                     setDetailPanelOpen(true);
                   }}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-border-subtle",
-                    isActive
-                      ? "bg-accent-muted"
-                      : "hover:bg-surface-secondary/60"
+                    isActive ? "bg-accent-muted" : "hover:bg-surface-secondary/60"
                   )}
                 >
                   <StatusIcon className={cn("size-4 shrink-0", status.color)} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] text-text-primary truncate">
+                    <p className={cn(
+                      "text-[13px] truncate",
+                      ticket.status === "closed" ? "text-text-tertiary line-through" : "text-text-primary"
+                    )}>
                       {ticket.title}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <TypeIcon className={cn("size-3", type.color)} />
-                      <span className="text-[11px] text-text-tertiary">
-                        {ticket.requester_name}
-                      </span>
+                      <TypeIcon className="size-3 text-text-tertiary" />
+                      <span className="text-[11px] text-text-tertiary capitalize">{ticketType}</span>
+                      {ticket.requester_name && (
+                        <span className="text-[11px] text-text-tertiary">{ticket.requester_name}</span>
+                      )}
                     </div>
                   </div>
-                  <span className="text-[11px] text-text-tertiary shrink-0">
-                    {new Date(ticket.created_at).toLocaleDateString("en", {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {ticket.reply_count > 0 && (
+                      <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
+                        <MessageSquareIcon className="size-3" />
+                        {ticket.reply_count}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-text-tertiary">
+                      {new Date(ticket.created_at).toLocaleDateString("en", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
                 </button>
               );
             })
@@ -242,84 +270,72 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
           open={detailPanelOpen}
           onClose={() => {
             setDetailPanelOpen(false);
-            setActiveTicket(null);
+            setActiveDiscussion(null);
           }}
           title={activeTicket.title}
           width="w-[360px]"
         >
           <div className="px-5 py-3">
-            {activeTicket.description && (
+            {activeTicket.body && (
               <p className="text-[13px] text-text-secondary leading-relaxed mb-4">
-                {activeTicket.description}
+                {activeTicket.body}
               </p>
             )}
 
             <div className="divide-y divide-border-subtle">
               <DetailRow label="Status">
-                <select
-                  className="h-7 rounded-md border border-border-subtle bg-surface-primary px-2 text-[12px] text-text-primary focus:outline-none"
-                  value={activeTicket.status}
-                  onChange={(e) =>
-                    handleUpdate(activeTicket.id, {
-                      status: e.target.value as TicketStatus,
-                    })
-                  }
-                >
-                  {Object.entries(statusConfig).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-0.5 rounded-md",
+                  statusConfig[activeTicket.status as keyof typeof statusConfig]?.bg ?? "bg-surface-tertiary",
+                  statusConfig[activeTicket.status as keyof typeof statusConfig]?.color ?? "text-text-tertiary"
+                )}>
+                  {statusConfig[activeTicket.status as keyof typeof statusConfig]?.label ?? activeTicket.status}
+                </span>
               </DetailRow>
 
               <DetailRow label="Type">
-                <select
-                  className="h-7 rounded-md border border-border-subtle bg-surface-primary px-2 text-[12px] text-text-primary focus:outline-none"
-                  value={activeTicket.type}
-                  onChange={(e) =>
-                    handleUpdate(activeTicket.id, {
-                      type: e.target.value as TicketType,
-                    })
-                  }
-                >
-                  {Object.entries(typeConfig).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
+                <span className="inline-flex items-center gap-1 text-[12px] text-text-primary capitalize">
+                  {(() => {
+                    const t = getTicketType(activeTicket);
+                    const Icon = typeIcons[t] ?? TicketIcon;
+                    return <><Icon className="size-3 text-text-tertiary" />{t}</>;
+                  })()}
+                </span>
               </DetailRow>
 
-              <DetailRow label="Priority">
-                <select
-                  className="h-7 rounded-md border border-border-subtle bg-surface-primary px-2 text-[12px] text-text-primary focus:outline-none"
-                  value={activeTicket.priority}
-                  onChange={(e) =>
-                    handleUpdate(activeTicket.id, {
-                      priority: e.target.value as any,
-                    })
-                  }
-                >
-                  {Object.entries(priorityConfig).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </DetailRow>
+              {activeTicket.priority && (
+                <DetailRow label="Priority">
+                  {(() => {
+                    const p = priorityConfig[activeTicket.priority as keyof typeof priorityConfig];
+                    if (!p) return <span className="text-[12px]">{activeTicket.priority}</span>;
+                    const PIcon = p.icon;
+                    return (
+                      <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium", p.color)}>
+                        <PIcon className="size-3" />
+                        {p.label}
+                      </span>
+                    );
+                  })()}
+                </DetailRow>
+              )}
 
-              <DetailRow label="Requester">
-                <div className="text-right">
-                  <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
-                    <UserIcon className="size-3 text-text-tertiary" />
-                    {activeTicket.requester_name}
-                  </span>
-                  <p className="text-[11px] text-text-tertiary mt-0.5">
-                    {activeTicket.requester_email}
-                  </p>
-                </div>
-              </DetailRow>
+              {(activeTicket.requester_name || activeTicket.requester_email) && (
+                <DetailRow label="Requester">
+                  <div className="text-right">
+                    {activeTicket.requester_name && (
+                      <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
+                        <UserIcon className="size-3 text-text-tertiary" />
+                        {activeTicket.requester_name}
+                      </span>
+                    )}
+                    {activeTicket.requester_email && (
+                      <p className="text-[11px] text-text-tertiary mt-0.5">
+                        {activeTicket.requester_email}
+                      </p>
+                    )}
+                  </div>
+                </DetailRow>
+              )}
 
               <DetailRow label="Assignee">
                 {activeTicket.assignee_id ? (() => {
@@ -336,6 +352,16 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
                 })() : (
                   <span className="text-[12px] text-text-tertiary">Unassigned</span>
                 )}
+              </DetailRow>
+
+              <DetailRow label="Replies">
+                <Link
+                  href={`/${params.locale}/projects/${projectId}/discussions?id=${activeTicket.id}`}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline"
+                >
+                  <MessageSquareIcon className="size-3" />
+                  {activeTicket.reply_count} {activeTicket.reply_count === 1 ? "reply" : "replies"}
+                </Link>
               </DetailRow>
 
               <DetailRow label="Created">

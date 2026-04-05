@@ -270,14 +270,20 @@ async function autoLinkPr(supabase: any, repo: any, pr: any) {
     for (const [table, type] of [
       ['project_tasks', 'task'],
       ['project_bugs', 'bug'],
-      ['project_tickets', 'ticket'],
+      ['discussions', 'ticket'],
     ] as const) {
-      const { data } = await supabase
+      let query = supabase
         .from(table)
         .select('id')
-        .eq('id', itemId)
-        .eq('project_id', repo.project_id)
-        .maybeSingle();
+        .eq('id', itemId);
+
+      if (table === 'discussions') {
+        query = query.eq('project_id', repo.project_id).eq('category', 'tickets');
+      } else {
+        query = query.eq('project_id', repo.project_id);
+      }
+
+      const { data } = await query.maybeSingle();
 
       if (data) {
         await supabase.from('github_pr_links').upsert(
@@ -331,14 +337,14 @@ async function autoCloseLinkedItems(supabase: any, repo: any, prNumber: number) 
         ? 'project_tasks'
         : link.item_type === 'bug'
           ? 'project_bugs'
-          : 'project_tickets';
+          : 'discussions';
 
     const doneStatus =
       link.item_type === 'task'
         ? 'done'
         : link.item_type === 'bug'
           ? 'fixed'
-          : 'resolved';
+          : 'closed';
 
     await supabase.from(table).update({ status: doneStatus }).eq('id', link.item_id);
   }

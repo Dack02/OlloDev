@@ -5,20 +5,19 @@ import { useTranslations } from "next-intl";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useTicketStore } from "@/stores/ticket-store";
+import { useProjectStore } from "@/stores/project-store";
 import { useAuth } from "@/lib/auth-context";
-import type { Ticket } from "@ollo-dev/shared/types";
+import { useOrgMembers } from "@/hooks/use-org-members";
 
 const STATUS_OPTIONS = [
   { value: "open", label: "Open" },
-  { value: "pending", label: "Pending" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "resolved", label: "Resolved" },
   { value: "closed", label: "Closed" },
+  { value: "archived", label: "Archived" },
 ];
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
-  { value: "normal", label: "Normal" },
+  { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" },
 ];
@@ -34,8 +33,12 @@ export function TicketList() {
   const t = useTranslations("tickets");
   const { tickets, activeTicketId, filters, setTickets, setActiveTicket, setFilters } =
     useTicketStore();
+  const { projects } = useProjectStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
+  const members = useOrgMembers();
+  const projectName = (id: string | null) => id ? projects.find((p) => p.id === id)?.name ?? null : null;
+  const memberName = (id: string | null) => id ? members.get(id)?.display_name ?? null : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,11 +50,11 @@ export function TicketList() {
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (filters.status) params.set("status", filters.status);
-        if (filters.priority) params.set("priority", filters.priority);
-        if (filters.assignee_id) params.set("assignee_id", filters.assignee_id);
+        params.set("category", "tickets");
+        params.set("include_archived", "true");
+        params.set("limit", "100");
 
-        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/tickets${params.toString() ? `?${params}` : ""}`;
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions?${params}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -74,6 +77,16 @@ export function TicketList() {
     { value: "mine", label: "Assigned to me" },
     { value: "unassigned", label: "Unassigned" },
   ];
+
+  const filteredTickets = tickets.filter((ticket) => {
+    if (filters.status && ticket.status !== filters.status) return false;
+    if (filters.priority && ticket.priority !== filters.priority) return false;
+    if (filters.assignee_id && ticket.assignee_id !== filters.assignee_id) return false;
+
+    if (viewTab === "mine") return Boolean(ticket.assignee_id);
+    if (viewTab === "unassigned") return !ticket.assignee_id;
+    return true;
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -108,60 +121,101 @@ export function TicketList() {
         {error && (
           <div className="p-6 text-center text-[13px] text-error">{error}</div>
         )}
-        {!loading && !error && tickets.length === 0 && (
+        {!loading && !error && filteredTickets.length === 0 && (
           <div className="p-6 text-center text-text-tertiary text-[13px]">
             {t("noTickets")}
           </div>
         )}
-        {!loading && !error && tickets.length > 0 && (
-          <table className="w-full">
-            <thead className="sticky top-0 bg-surface-secondary/80 backdrop-blur-sm border-b border-border-subtle">
-              <tr>
-                <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subject</th>
-                <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-28">Status</th>
-                <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-24">Priority</th>
-                <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-28">Assignee</th>
-                <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-24">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {tickets.map((ticket) => (
-                <tr
+        {!loading && !error && filteredTickets.length > 0 && (
+          <>
+            {/* Desktop table */}
+            <table className="hidden md:table w-full">
+              <thead className="sticky top-0 bg-surface-secondary/80 backdrop-blur-sm border-b border-border-subtle">
+                <tr>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subject</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-32">Project</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-28">Status</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-24">Priority</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-28">Assignee</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary w-24">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {filteredTickets.map((ticket) => (
+                  <tr
+                    key={ticket.id}
+                    onClick={() => setActiveTicket(ticket.id)}
+                    className={`cursor-pointer transition-colors duration-100 ${
+                      activeTicketId === ticket.id
+                        ? "bg-accent-muted"
+                        : "hover:bg-surface-secondary/50"
+                    }`}
+                  >
+                    <td className="px-4 py-2.5 text-[13px] text-text-primary font-medium truncate max-w-xs">
+                      {ticket.title}
+                    </td>
+                    <td className="px-4 py-2.5 text-[12px] text-text-secondary truncate">
+                      {projectName(ticket.project_id) ?? (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <StatusBadge
+                        kind="status"
+                        value={ticket.status as "open" | "closed" | "archived"}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <StatusBadge
+                        kind="priority"
+                        value={(ticket.priority ?? "medium") as "low" | "medium" | "high" | "urgent"}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-[12px] text-text-secondary truncate">
+                      {memberName(ticket.assignee_id) ?? (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-[12px] text-text-tertiary">
+                      {formatDate(ticket.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile card list */}
+            <div className="md:hidden divide-y divide-border-subtle">
+              {filteredTickets.map((ticket) => (
+                <button
                   key={ticket.id}
                   onClick={() => setActiveTicket(ticket.id)}
-                  className={`cursor-pointer transition-colors duration-100 ${
+                  className={`w-full text-left px-4 py-3 min-h-[44px] transition-colors duration-100 ${
                     activeTicketId === ticket.id
                       ? "bg-accent-muted"
-                      : "hover:bg-surface-secondary/50"
+                      : "active:bg-surface-secondary/50"
                   }`}
                 >
-                  <td className="px-4 py-2.5 text-[13px] text-text-primary font-medium truncate max-w-xs">
-                    {ticket.subject}
-                  </td>
-                  <td className="px-4 py-2.5">
+                  <p className="text-[13px] text-text-primary font-medium line-clamp-1">
+                    {ticket.title}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
                     <StatusBadge
                       kind="status"
-                      value={ticket.status as "open" | "pending" | "in_progress" | "resolved" | "closed"}
+                      value={ticket.status as "open" | "closed" | "archived"}
                     />
-                  </td>
-                  <td className="px-4 py-2.5">
                     <StatusBadge
                       kind="priority"
-                      value={ticket.priority as "low" | "normal" | "high" | "urgent"}
+                      value={(ticket.priority ?? "medium") as "low" | "medium" | "high" | "urgent"}
                     />
-                  </td>
-                  <td className="px-4 py-2.5 text-[12px] text-text-secondary truncate">
-                    {ticket.assignee_id ?? (
-                      <span className="text-text-tertiary">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-[12px] text-text-tertiary">
-                    {formatDate(ticket.created_at)}
-                  </td>
-                </tr>
+                    <span className="ml-auto text-[11px] text-text-tertiary">
+                      {formatDate(ticket.created_at)}
+                    </span>
+                  </div>
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
     </div>

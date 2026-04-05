@@ -19,6 +19,7 @@ import {
   DEV_ITEM_TYPES,
   DEV_ITEM_STATUSES,
   PROJECT_TICKET_TYPES,
+  DISCUSSION_STATUSES,
 } from '../constants/index.js';
 
 // ============================================================
@@ -127,6 +128,10 @@ export const createDiscussionSchema = z.object({
   category: z.enum(DISCUSSION_CATEGORIES).optional(),
   tags: z.array(z.string().max(30)).max(5).default([]),
   project_id: z.string().uuid().nullable().optional(),
+  assignee_id: z.string().uuid().nullable().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).nullable().optional(),
+  requester_name: z.string().max(200).optional(),
+  requester_email: z.string().email().optional(),
 });
 
 export const updateDiscussionSchema = z.object({
@@ -137,6 +142,19 @@ export const updateDiscussionSchema = z.object({
   is_locked: z.boolean().optional(),
   tags: z.array(z.string().max(30)).max(5).optional(),
   project_id: z.string().uuid().nullable().optional(),
+  status: z.enum(DISCUSSION_STATUSES).optional(),
+  assignee_id: z.string().uuid().nullable().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).nullable().optional(),
+  requester_name: z.string().max(200).nullable().optional(),
+  requester_email: z.string().email().nullable().optional(),
+});
+
+export const closeDiscussionSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export const bulkArchiveDiscussionsSchema = z.object({
+  discussion_ids: z.array(z.string().uuid()).min(1).max(50),
 });
 
 export const createDiscussionReplySchema = z.object({

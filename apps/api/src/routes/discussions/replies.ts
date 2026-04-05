@@ -136,15 +136,18 @@ app.openapi(createReplyRoute, async (c) => {
   // Verify discussion exists in this org and is not locked
   const { data: discussion, error: discErr } = await supabase
     .from('discussions')
-    .select('id, is_locked, reply_count')
+    .select('id, is_locked, reply_count, status')
     .eq('id', discussionId)
     .eq('org_id', orgId)
     .maybeSingle();
 
   if (discErr) return internalError(c, discErr.message);
   if (!discussion) return notFound(c, 'Discussion not found');
-  if (discussion.is_locked && !isAdminOrAbove(membership.role)) {
-    return forbidden(c, 'This discussion is locked');
+  if (discussion.status === 'archived') {
+    return forbidden(c, 'This discussion is archived');
+  }
+  if ((discussion.is_locked || discussion.status === 'closed') && !isAdminOrAbove(membership.role)) {
+    return forbidden(c, 'This discussion is closed');
   }
 
   const { data: reply, error } = await supabase

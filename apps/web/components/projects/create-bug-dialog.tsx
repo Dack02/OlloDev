@@ -92,6 +92,7 @@ export function CreateBugDialog({ projectId, trigger }: CreateBugDialogProps) {
           assignee_id: null,
           reporter_id: "user_1",
           labels: labelArray,
+          discussion_id: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

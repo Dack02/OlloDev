@@ -96,6 +96,7 @@ export function CreateTaskDialog({ projectId, trigger }: CreateTaskDialogProps) 
           due_at: null,
           tags: tagsArray,
           sort_order: 0,
+          discussion_id: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

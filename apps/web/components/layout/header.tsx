@@ -6,9 +6,10 @@ import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { SunIcon, MoonIcon, LogOutIcon, SettingsIcon } from "lucide-react";
+import { SunIcon, MoonIcon, LogOutIcon, SettingsIcon, MenuIcon } from "lucide-react";
 import { NotificationBell } from "@/components/layout/notification-panel";
 import { TimerWidget } from "@/components/projects/timer-widget";
+import { useMobileSidebar } from "@/hooks/useMobileSidebar";
 
 export function Header() {
   const { theme, setTheme } = useTheme();
@@ -17,6 +18,7 @@ export function Header() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { toggle: toggleSidebar } = useMobileSidebar();
 
   const displayName =
     user?.user_metadata?.display_name ?? user?.email ?? "";
@@ -42,8 +44,15 @@ export function Header() {
 
   return (
     <header className="flex h-12 items-center justify-between border-b border-border-subtle px-5 shrink-0">
-      {/* Left: timer widget */}
-      <div>
+      {/* Left: hamburger (mobile) + timer widget */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={toggleSidebar}
+          className="md:hidden p-2 -ml-2 rounded-radius-sm text-text-tertiary hover:text-text-secondary hover:bg-surface-tertiary/50 transition-colors"
+          aria-label="Toggle menu"
+        >
+          <MenuIcon className="size-5" />
+        </button>
         <TimerWidget />
       </div>
 

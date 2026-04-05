@@ -1,26 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { TicketCommentForm } from "./ticket-comment-form";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth-context";
-import type { Ticket, TicketComment, TicketActivity } from "@ollo-dev/shared/types";
-
-const STATUS_CLASSES: Record<string, string> = {
-  open: "bg-blue-100 text-blue-700",
-  pending: "bg-yellow-100 text-yellow-700",
-  in_progress: "bg-accent/10 text-accent",
-  resolved: "bg-green-100 text-green-700",
-  closed: "bg-gray-100 text-gray-600",
-};
-
-const PRIORITY_CLASSES: Record<string, string> = {
-  low: "bg-gray-100 text-gray-600",
-  normal: "bg-blue-100 text-blue-700",
-  high: "bg-orange-100 text-orange-700",
-  urgent: "bg-red-100 text-red-700",
-};
+import { useProjectStore } from "@/stores/project-store";
+import { useOrgMembers } from "@/hooks/use-org-members";
+import type { Discussion, DiscussionReply } from "@ollo-dev/shared/types";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString(undefined, {
@@ -32,80 +18,93 @@ function formatDate(dateStr: string) {
   });
 }
 
-function formatTimeRemaining(dueStr: string): { label: string; breached: boolean; warning: boolean } {
-  const due = new Date(dueStr);
-  const now = new Date();
-  const diffMs = due.getTime() - now.getTime();
-
-  if (diffMs < 0) {
-    return { label: "Breached", breached: true, warning: false };
-  }
-
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  let label: string;
-  if (diffDays > 0) label = `${diffDays}d`;
-  else if (diffHours > 0) label = `${diffHours}h`;
-  else label = `${diffMins}m`;
-
-  return { label, breached: false, warning: diffHours < 2 };
-}
-
 interface TicketDetailProps {
   ticketId: string;
 }
 
 export function TicketDetail({ ticketId }: TicketDetailProps) {
-  const t = useTranslations("tickets");
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [comments, setComments] = useState<TicketComment[]>([]);
-  const [activities, setActivities] = useState<TicketActivity[]>([]);
+  const { projects } = useProjectStore();
+  const members = useOrgMembers();
+  const projectName = (id: string | null) => id ? projects.find((p) => p.id === id)?.name ?? id : null;
+  const memberName = (id: string | null) => id ? members.get(id)?.display_name ?? "Unknown" : null;
+  const [ticket, setTicket] = useState<Discussion | null>(null);
+  const [replies, setReplies] = useState<DiscussionReply[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
 
   const fetchTicket = useCallback(async () => {
     if (!orgId || !accessToken) return;
+
     setLoading(true);
     setError(null);
-    const headers = { Authorization: `Bearer ${accessToken}` };
+
     try {
-      const [ticketRes, commentsRes, activitiesRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/tickets/${ticketId}`, { headers }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/tickets/${ticketId}/comments`, { headers }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/tickets/${ticketId}/activity`, { headers }),
+      const headers = { Authorization: `Bearer ${accessToken}` };
+      const [ticketRes, repliesRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${ticketId}`, { headers }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${ticketId}/replies`, { headers }),
       ]);
 
       if (!ticketRes.ok) throw new Error("Failed to fetch ticket");
+
       const ticketJson = await ticketRes.json();
       setTicket(ticketJson.data ?? ticketJson);
 
-      if (commentsRes.ok) {
-        const commentsJson = await commentsRes.json();
-        setComments(commentsJson.data ?? commentsJson);
-      }
-
-      if (activitiesRes.ok) {
-        const activitiesJson = await activitiesRes.json();
-        setActivities(activitiesJson.data ?? activitiesJson);
+      if (repliesRes.ok) {
+        const repliesJson = await repliesRes.json();
+        setReplies(repliesJson.data ?? repliesJson);
+      } else {
+        setReplies([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setLoading(false);
     }
-  }, [ticketId, orgId, accessToken]);
+  }, [accessToken, orgId, ticketId]);
 
   useEffect(() => {
     fetchTicket();
   }, [fetchTicket]);
 
+  const handlePostReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyBody.trim() || !orgId || !accessToken || submittingReply) return;
+
+    setSubmittingReply(true);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${ticketId}/replies`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ body: replyBody }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to add reply");
+
+      setReplyBody("");
+      await fetchTicket();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSubmittingReply(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-text-secondary text-sm">
+      <div className="flex h-full items-center justify-center text-sm text-text-secondary">
         Loading...
       </div>
     );
@@ -113,7 +112,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-red-600 text-sm">
+      <div className="flex h-full items-center justify-center text-sm text-red-600">
         {error}
       </div>
     );
@@ -121,188 +120,102 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
   if (!ticket) return null;
 
-  const firstResponseSla = ticket.sla_breach_at
-    ? formatTimeRemaining(ticket.sla_breach_at)
-    : null;
-  const resolutionSla = ticket.due_at
-    ? formatTimeRemaining(ticket.due_at)
-    : null;
+  const ticketType = ticket.tags.find((tag) =>
+    ["question", "bug", "feature", "task"].includes(tag)
+  ) ?? "task";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b border-border-subtle bg-surface-primary">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="border-b border-border-subtle bg-surface-primary p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-text-primary">
-              {ticket.subject}
-            </h2>
+            <h2 className="text-base font-semibold text-text-primary">{ticket.title}</h2>
+            <p className="mt-1 text-sm capitalize text-text-secondary">{ticketType}</p>
           </div>
-          <div className="flex gap-1.5 shrink-0 mt-1">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASSES[ticket.status] ?? ""}`}
-            >
-              {t(`status.${ticket.status}` as Parameters<typeof t>[0])}
-            </span>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_CLASSES[ticket.priority] ?? ""}`}
-            >
-              {t(`priority.${ticket.priority}` as Parameters<typeof t>[0])}
-            </span>
+          <div className="mt-1 flex gap-1.5">
+            <StatusBadge kind="status" value={ticket.status as "open" | "closed" | "archived"} />
+            {ticket.priority && (
+              <StatusBadge
+                kind="priority"
+                value={ticket.priority as "low" | "medium" | "high" | "urgent"}
+              />
+            )}
           </div>
         </div>
 
-        {/* Meta */}
         <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
           <div className="text-text-secondary">
             <span className="font-medium text-text-primary">Requester: </span>
-            {ticket.requester_id}
+            {ticket.requester_name ?? ticket.requester_email ?? "Not set"}
           </div>
           <div className="text-text-secondary">
             <span className="font-medium text-text-primary">Assignee: </span>
-            {ticket.assignee_id ?? "Unassigned"}
+            {memberName(ticket.assignee_id) ?? "Unassigned"}
           </div>
-          <div className="text-text-secondary">
-            <span className="font-medium text-text-primary">Type: </span>
-            {ticket.type}
-          </div>
-          {ticket.queue_id && (
-            <div className="text-text-secondary">
-              <span className="font-medium text-text-primary">Queue: </span>
-              {ticket.queue_id}
-            </div>
-          )}
           <div className="text-text-secondary">
             <span className="font-medium text-text-primary">Created: </span>
             {formatDate(ticket.created_at)}
           </div>
+          {ticket.project_id && (
+            <div className="text-text-secondary">
+              <span className="font-medium text-text-primary">Project: </span>
+              {projectName(ticket.project_id)}
+            </div>
+          )}
         </div>
 
-        {/* Tags */}
+        <div className="mt-4 whitespace-pre-wrap text-sm text-text-primary">{ticket.body}</div>
+
         {ticket.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-3 flex flex-wrap gap-1">
             {ticket.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs text-text-secondary border border-border-subtle"
+                className="rounded-full border border-border-subtle bg-surface-secondary px-2 py-0.5 text-xs text-text-secondary"
               >
                 {tag}
               </span>
             ))}
           </div>
         )}
-
-        {/* SLA */}
-        {(firstResponseSla || resolutionSla) && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {ticket.sla_breach_at && new Date(ticket.sla_breach_at) < new Date() && (
-              <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                {t("slaBreached")}
-              </span>
-            )}
-            {firstResponseSla && !firstResponseSla.breached && (
-              <span
-                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-                  firstResponseSla.warning
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-surface-secondary text-text-secondary"
-                }`}
-              >
-                First response: {firstResponseSla.label}
-              </span>
-            )}
-            {resolutionSla && !resolutionSla.breached && (
-              <span
-                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-                  resolutionSla.warning
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-surface-secondary text-text-secondary"
-                }`}
-              >
-                Resolution: {resolutionSla.label}
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Description */}
-      <div className="px-4 py-3 border-b border-border-subtle bg-surface-primary">
-        <p className="text-sm text-text-primary whitespace-pre-wrap">{ticket.description}</p>
-      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-3">
+          {replies.length === 0 && (
+            <div className="text-sm text-text-secondary">No replies yet.</div>
+          )}
 
-      {/* Tabs */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <Tabs defaultValue="comments" className="flex flex-col flex-1 overflow-hidden">
-          <div className="px-4 pt-3 border-b border-border-subtle">
-            <TabsList variant="line">
-              <TabsTrigger value="comments">Comments ({comments.length})</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="comments" className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-            {comments.length === 0 && (
-              <p className="text-sm text-text-secondary text-center py-4">No comments yet.</p>
-            )}
-            {comments.map((comment) => (
-              <div
-                key={comment.id}
-                className={`rounded-lg p-3 text-sm ${
-                  comment.is_internal
-                    ? "bg-yellow-50 border border-yellow-200"
-                    : "bg-surface-secondary border border-border-subtle"
-                }`}
-              >
-                {comment.is_internal && (
-                  <span className="text-xs font-medium text-yellow-700 mb-1 block">
-                    Internal Note
-                  </span>
-                )}
-                <p className="text-text-primary whitespace-pre-wrap">{comment.body}</p>
-                <p className="text-xs text-text-secondary mt-1.5">
-                  {comment.author_id} · {formatDate(comment.created_at)}
-                </p>
+          {replies.map((reply) => (
+            <div
+              key={reply.id}
+              className="rounded-lg border border-border-subtle bg-surface-secondary p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-text-secondary">{memberName(reply.author_id) ?? "Unknown"}</div>
+                <div className="text-[11px] text-text-tertiary">{formatDate(reply.created_at)}</div>
               </div>
-            ))}
-
-            {/* Comment form */}
-            <div className="mt-auto pt-3 border-t border-border-subtle">
-              <TicketCommentForm
-                ticketId={ticketId}
-                onCommentAdded={fetchTicket}
-                showInternalToggle={true}
-              />
+              <div className="mt-2 whitespace-pre-wrap text-sm text-text-primary">
+                {reply.body}
+              </div>
             </div>
-          </TabsContent>
+          ))}
+        </div>
 
-          <TabsContent value="activity" className="flex-1 overflow-y-auto p-4">
-            {activities.length === 0 && (
-              <p className="text-sm text-text-secondary text-center py-4">No activity yet.</p>
-            )}
-            <div className="flex flex-col gap-2">
-              {activities.map((activity) => (
-                <div key={activity.id} className="flex gap-2 text-sm">
-                  <div className="mt-1 h-1.5 w-1.5 rounded-full bg-border-subtle shrink-0" />
-                  <div>
-                    <span className="text-text-primary font-medium">{activity.actor_id}</span>{" "}
-                    <span className="text-text-secondary">{activity.action}</span>
-                    {activity.old_value && activity.new_value && (
-                      <span className="text-text-secondary">
-                        {" "}
-                        from <span className="font-medium">{activity.old_value}</span> to{" "}
-                        <span className="font-medium">{activity.new_value}</span>
-                      </span>
-                    )}
-                    <p className="text-xs text-text-secondary mt-0.5">
-                      {formatDate(activity.created_at)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+        <form onSubmit={handlePostReply} className="mt-4 flex flex-col gap-2 border-t border-border-subtle pt-4">
+          <textarea
+            className="min-h-[88px] w-full resize-none rounded-lg border border-border-subtle bg-surface-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none"
+            placeholder="Add a reply"
+            value={replyBody}
+            onChange={(e) => setReplyBody(e.target.value)}
+            disabled={submittingReply}
+          />
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" disabled={submittingReply || !replyBody.trim()}>
+              {submittingReply ? "Posting..." : "Post reply"}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

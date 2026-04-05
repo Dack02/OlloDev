@@ -344,7 +344,7 @@ export default function SettingsPage() {
     name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 md:px-0 py-4 md:py-0 overflow-y-auto h-full">
       <div>
         <h1 className="text-2xl font-semibold text-text-primary">{t("title")}</h1>
       </div>
@@ -422,7 +422,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-text-secondary mb-3">
                   {t("colorThemeDescription")}
                 </p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {COLOR_THEMES.map((ct) => {
                     const selected = colorTheme === ct.key;
                     return (
@@ -501,7 +501,7 @@ export default function SettingsPage() {
               <CardTitle>{t("organization")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm font-medium text-text-secondary">Name</span>
                   <p className="mt-1 text-text-primary font-medium">{org?.name ?? "—"}</p>

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useProjectStore } from "@/stores/project-store";
+import { useDiscussionsStore } from "@/stores/discussions-store";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
 import { PlusIcon } from "lucide-react";
@@ -23,7 +23,7 @@ interface CreateTicketDialogProps {
 }
 
 export function CreateTicketDialog({ projectId, trigger }: CreateTicketDialogProps) {
-  const { addTicket } = useProjectStore();
+  const { addDiscussion } = useDiscussionsStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
   const [open, setOpen] = useState(false);
@@ -57,7 +57,7 @@ export function CreateTicketDialog({ projectId, trigger }: CreateTicketDialogPro
     try {
       if (orgId && accessToken) {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/projects/${projectId}/tickets`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions`,
           {
             method: "POST",
             headers: {
@@ -66,30 +66,45 @@ export function CreateTicketDialog({ projectId, trigger }: CreateTicketDialogPro
             },
             body: JSON.stringify({
               title,
-              description,
-              type,
+              body: description || `Ticket: ${title}`,
+              category: "tickets",
+              tags: [type],
+              project_id: projectId,
               priority,
-              requester_name: requesterName,
-              requester_email: requesterEmail,
+              requester_name: requesterName || undefined,
+              requester_email: requesterEmail || undefined,
             }),
           }
         );
         if (!res.ok) throw new Error("Failed to create ticket");
         const json = await res.json();
-        addTicket(json.data);
+        addDiscussion(json.data);
       } else {
         // Fallback: add to local store (dev mode)
-        addTicket({
+        addDiscussion({
           id: `tk_${Date.now()}`,
+          org_id: "",
           project_id: projectId,
           title,
-          description,
-          type: type as "question" | "bug" | "feature" | "task",
+          body: description || `Ticket: ${title}`,
+          body_html: null,
+          author_id: "user_1",
+          category: "tickets",
+          is_pinned: false,
+          is_locked: false,
+          tags: [type],
+          upvotes: 0,
+          reply_count: 0,
           status: "open",
-          priority: priority as "low" | "medium" | "high" | "urgent",
-          requester_name: requesterName,
-          requester_email: requesterEmail,
+          source_type: null,
+          source_id: null,
+          closed_at: null,
+          closed_by: null,
+          close_reason: null,
           assignee_id: null,
+          priority,
+          requester_name: requesterName || null,
+          requester_email: requesterEmail || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

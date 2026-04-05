@@ -102,6 +102,35 @@ app.openapi(createRouteSpec, async (c) => {
     .select().single();
 
   if (error) return badRequest(c, error.message);
+
+  // Auto-create a linked discussion thread
+  const { data: discussion } = await supabase
+    .from('discussions')
+    .insert({
+      org_id: orgId,
+      project_id: projectId,
+      author_id: user.id,
+      title: `[Task] ${body.title}`,
+      body: body.description || `Discussion thread for task: ${body.title}`,
+      category: 'general',
+      tags: ['task', 'auto-thread'],
+      source_type: 'task',
+      source_id: task.id,
+    })
+    .select('id')
+    .single();
+
+  if (discussion) {
+    const { data: updated } = await supabase
+      .from('project_tasks')
+      .update({ discussion_id: discussion.id })
+      .eq('id', task.id)
+      .select()
+      .single();
+
+    return c.json({ data: updated ?? { ...task, discussion_id: discussion.id } }, 201);
+  }
+
   return c.json({ data: task }, 201);
 });
 
@@ -136,6 +165,20 @@ app.openapi(updateRouteSpec, async (c) => {
 
   const { data: task, error } = await supabase.from('project_tasks').update(body).eq('id', taskId).select().single();
   if (error) return badRequest(c, error.message);
+
+  // Auto-close linked discussion when task is done
+  if (body.status === 'done' && existing.discussion_id) {
+    await supabase
+      .from('discussions')
+      .update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+        closed_by: user.id,
+        close_reason: 'Auto-closed: linked task marked as done',
+      })
+      .eq('id', existing.discussion_id)
+      .eq('status', 'open');
+  }
 
   return c.json({ data: task });
 });

@@ -8,10 +8,14 @@ import {
   LockIcon,
   PinIcon,
   MessageSquareIcon,
+  XCircleIcon,
+  ArchiveIcon,
+  RotateCcwIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiscussionsStore } from "@/stores/discussions-store";
 import { useAuth } from "@/lib/auth-context";
+import { useOrgMembers } from "@/hooks/use-org-members";
 import type { Discussion, DiscussionReply } from "@ollo-dev/shared/types";
 
 const CATEGORY_CLASSES: Record<string, string> = {
@@ -39,6 +43,7 @@ interface ReplyItemProps {
   allReplies: DiscussionReply[];
   onMarkAccepted: (replyId: string) => void;
   submittingAccept: string | null;
+  memberName: (id: string) => string;
 }
 
 function ReplyItem({
@@ -47,6 +52,7 @@ function ReplyItem({
   allReplies,
   onMarkAccepted,
   submittingAccept,
+  memberName,
 }: ReplyItemProps) {
   const t = useTranslations("discussions");
   const nested = allReplies.filter((r) => r.parent_id === reply.id);
@@ -69,7 +75,7 @@ function ReplyItem({
         <p className="text-text-primary whitespace-pre-wrap">{reply.body}</p>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3 text-xs text-text-secondary">
-            <span className="font-medium text-text-primary">{reply.author_id}</span>
+            <span className="font-medium text-text-primary">{memberName(reply.author_id)}</span>
             <span>{timeAgo(reply.created_at)}</span>
             <span className="flex items-center gap-1">
               <ThumbsUpIcon className="size-3" />
@@ -97,6 +103,7 @@ function ReplyItem({
           allReplies={allReplies}
           onMarkAccepted={onMarkAccepted}
           submittingAccept={submittingAccept}
+          memberName={memberName}
         />
       ))}
     </div>
@@ -112,6 +119,8 @@ export function DiscussionDetail({ discussionId }: DiscussionDetailProps) {
   const { updateDiscussion } = useDiscussionsStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
+  const members = useOrgMembers();
+  const memberName = (id: string) => members.get(id)?.display_name ?? "Unknown";
   const [discussion, setDiscussion] = useState<Discussion | null>(null);
   const [replies, setReplies] = useState<DiscussionReply[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,6 +129,69 @@ export function DiscussionDetail({ discussionId }: DiscussionDetailProps) {
   const [submittingReply, setSubmittingReply] = useState(false);
   const [submittingAccept, setSubmittingAccept] = useState<string | null>(null);
   const [upvoting, setUpvoting] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
+  const [showCloseForm, setShowCloseForm] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const handleClose = async () => {
+    if (!orgId || !accessToken || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${discussionId}/close`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ reason: closeReason || undefined }),
+        }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setDiscussion(json.data);
+        updateDiscussion(discussionId, json.data);
+        setShowCloseForm(false);
+        setCloseReason("");
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (!orgId || !accessToken || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${discussionId}/reopen`,
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setDiscussion(json.data);
+        updateDiscussion(discussionId, json.data);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!orgId || !accessToken || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions/${discussionId}/archive`,
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setDiscussion(json.data);
+        updateDiscussion(discussionId, json.data);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!orgId || !accessToken) return;
@@ -264,25 +336,116 @@ export function DiscussionDetail({ discussionId }: DiscussionDetailProps) {
 
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <div className="flex items-center gap-3">
-            <span className="font-medium text-text-primary">{discussion.author_id}</span>
+            <span className="font-medium text-text-primary">{memberName(discussion.author_id)}</span>
             <span>{timeAgo(discussion.created_at)}</span>
             <span className="flex items-center gap-1">
               <MessageSquareIcon className="size-3" />
               {discussion.reply_count}
             </span>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleUpvote}
-            disabled={upvoting}
-            className="flex items-center gap-1.5 h-7 text-xs"
-          >
-            <ThumbsUpIcon className="size-3.5" />
-            {t("upvote")} {discussion.upvotes > 0 && `(${discussion.upvotes})`}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleUpvote}
+              disabled={upvoting}
+              className="flex items-center gap-1.5 h-7 text-xs"
+            >
+              <ThumbsUpIcon className="size-3.5" />
+              {t("upvote")} {discussion.upvotes > 0 && `(${discussion.upvotes})`}
+            </Button>
+
+            {discussion.status === "open" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowCloseForm(!showCloseForm)}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 h-7 text-xs"
+              >
+                <XCircleIcon className="size-3.5" />
+                Close
+              </Button>
+            )}
+
+            {discussion.status === "closed" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleReopen}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 h-7 text-xs"
+              >
+                <RotateCcwIcon className="size-3.5" />
+                Reopen
+              </Button>
+            )}
+
+            {discussion.status !== "archived" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleArchive}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 h-7 text-xs text-text-tertiary"
+              >
+                <ArchiveIcon className="size-3.5" />
+                Archive
+              </Button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Close form popover */}
+      {showCloseForm && (
+        <div className="px-5 py-3 border-b border-border-subtle bg-surface-secondary shrink-0">
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              className="w-full rounded-lg border border-border-subtle bg-surface-primary px-3 py-1.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent"
+              placeholder="Reason for closing (optional)"
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowCloseForm(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleClose} disabled={actionLoading}>
+                {actionLoading ? "Closing..." : "Close Discussion"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status banners */}
+      {discussion.status === "closed" && (
+        <div className="px-5 py-2.5 border-b border-border-subtle bg-green-50 shrink-0 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-green-700">
+            <CheckCircle2Icon className="size-4" />
+            <span>
+              This discussion was closed
+              {discussion.close_reason && ` \u2014 ${discussion.close_reason}`}
+            </span>
+          </div>
+          <button
+            onClick={handleReopen}
+            disabled={actionLoading}
+            className="text-xs font-medium text-green-700 hover:underline"
+          >
+            Reopen
+          </button>
+        </div>
+      )}
+
+      {discussion.status === "archived" && (
+        <div className="px-5 py-2.5 border-b border-border-subtle bg-surface-tertiary shrink-0 flex items-center gap-2 text-sm text-text-tertiary">
+          <ArchiveIcon className="size-4" />
+          <span>This discussion is archived and read-only.</span>
+        </div>
+      )}
 
       {/* Body */}
       <div className="px-5 py-4 border-b border-border-subtle bg-surface-primary shrink-0">
@@ -303,12 +466,13 @@ export function DiscussionDetail({ discussionId }: DiscussionDetailProps) {
             allReplies={replies}
             onMarkAccepted={handleMarkAccepted}
             submittingAccept={submittingAccept}
+            memberName={memberName}
           />
         ))}
       </div>
 
       {/* Reply form */}
-      {!discussion.is_locked && (
+      {!discussion.is_locked && discussion.status !== "closed" && discussion.status !== "archived" && (
         <div className="px-5 py-3 border-t border-border-subtle bg-surface-primary shrink-0">
           <form onSubmit={handlePostReply} className="flex flex-col gap-2">
             <textarea

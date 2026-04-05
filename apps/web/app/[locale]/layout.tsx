@@ -1,3 +1,4 @@
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages } from "next-intl/server";
@@ -5,6 +6,12 @@ import { Inter } from "next/font/google";
 import { routing } from "@/i18n/routing";
 import { Providers } from "./providers";
 import "../globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 const inter = Inter({
   subsets: ["latin"],

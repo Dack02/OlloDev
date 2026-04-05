@@ -25,7 +25,7 @@ import {
      <StatusBadge kind="category" value="bugs" label="Bugs" />
    ================================================================ */
 
-type StatusValue = "open" | "pending" | "in_progress" | "resolved" | "closed";
+type StatusValue = "open" | "pending" | "in_progress" | "resolved" | "closed" | "archived";
 type PriorityValue = "low" | "normal" | "medium" | "high" | "urgent";
 type CategoryValue = string;
 
@@ -68,6 +68,13 @@ const STATUS_MAP: Record<StatusValue, StatusConfig> = {
   },
   closed: {
     label: "Closed",
+    icon: XCircleIcon,
+    dot: "text-text-tertiary",
+    bg: "bg-surface-tertiary/60",
+    text: "text-text-secondary",
+  },
+  archived: {
+    label: "Archived",
     icon: XCircleIcon,
     dot: "text-text-tertiary",
     bg: "bg-surface-tertiary/60",

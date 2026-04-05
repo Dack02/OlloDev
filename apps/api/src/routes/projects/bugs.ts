@@ -184,6 +184,34 @@ app.openapi(createBugRoute, async (c) => {
 
   if (error) return badRequest(c, error.message);
 
+  // Auto-create a linked discussion thread
+  const { data: discussion } = await supabase
+    .from('discussions')
+    .insert({
+      org_id: orgId,
+      project_id: projectId,
+      author_id: user.id,
+      title: `[Bug] ${body.title}`,
+      body: body.description || `Discussion thread for bug: ${body.title}`,
+      category: 'bugs',
+      tags: ['bug', 'auto-thread'],
+      source_type: 'bug',
+      source_id: bug.id,
+    })
+    .select('id')
+    .single();
+
+  if (discussion) {
+    const { data: updated } = await supabase
+      .from('project_bugs')
+      .update({ discussion_id: discussion.id })
+      .eq('id', bug.id)
+      .select()
+      .single();
+
+    return c.json({ data: updated ?? { ...bug, discussion_id: discussion.id } }, 201);
+  }
+
   return c.json({ data: bug }, 201);
 });
 
@@ -294,6 +322,20 @@ app.openapi(updateBugRoute, async (c) => {
     .single();
 
   if (error) return badRequest(c, error.message);
+
+  // Auto-close linked discussion when bug reaches terminal status
+  if (body.status && ['fixed', 'closed'].includes(body.status) && existing.discussion_id) {
+    await supabase
+      .from('discussions')
+      .update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+        closed_by: user.id,
+        close_reason: `Auto-closed: linked bug marked as ${body.status}`,
+      })
+      .eq('id', existing.discussion_id)
+      .eq('status', 'open');
+  }
 
   return c.json({ data: bug });
 });

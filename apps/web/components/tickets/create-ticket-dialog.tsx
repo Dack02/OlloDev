@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTicketStore } from "@/stores/ticket-store";
 import { useAuth } from "@/lib/auth-context";
-import type { Ticket } from "@ollo-dev/shared/types";
+import type { Discussion } from "@ollo-dev/shared/types";
 
 interface CreateTicketDialogProps {
   trigger?: React.ReactElement;
@@ -31,47 +31,43 @@ export function CreateTicketDialog({ trigger }: CreateTicketDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [subject, setSubject] = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("normal");
+  const [priority, setPriority] = useState("medium");
   const [type, setType] = useState("question");
-  const [queue, setQueue] = useState("");
 
   const resetForm = () => {
-    setSubject("");
+    setTitle("");
     setDescription("");
-    setPriority("normal");
+    setPriority("medium");
     setType("question");
-    setQueue("");
     setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim() || !orgId || !accessToken) return;
+    if (!title.trim() || !orgId || !accessToken) return;
 
     setSubmitting(true);
     setError(null);
     try {
-      const body: Record<string, string> = {
-        subject,
-        description,
-        priority,
-        type,
-      };
-      if (queue) body.queue_id = queue;
-
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/tickets`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/discussions`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            title,
+            body: description || `Ticket: ${title}`,
+            category: "tickets",
+            tags: [type],
+            priority,
+          }),
         }
       );
       if (!res.ok) throw new Error("Failed to create ticket");
       const json = await res.json();
-      const ticket: Ticket = json.data ?? json;
+      const ticket: Discussion = json.data ?? json;
       addTicket(ticket);
       resetForm();
       setOpen(false);
@@ -93,8 +89,8 @@ export function CreateTicketDialog({ trigger }: CreateTicketDialogProps) {
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-text-primary">{t("subject")}</label>
             <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Brief description of the issue"
               required
               disabled={submitting}
@@ -122,7 +118,7 @@ export function CreateTicketDialog({ trigger }: CreateTicketDialogProps) {
                 disabled={submitting}
               >
                 <option value="low">{t("priority.low")}</option>
-                <option value="normal">{t("priority.normal")}</option>
+                <option value="medium">Medium</option>
                 <option value="high">{t("priority.high")}</option>
                 <option value="urgent">{t("priority.urgent")}</option>
               </select>
@@ -144,23 +140,13 @@ export function CreateTicketDialog({ trigger }: CreateTicketDialogProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-text-primary">{t("queue")} (optional)</label>
-            <Input
-              value={queue}
-              onChange={(e) => setQueue(e.target.value)}
-              placeholder="Queue ID"
-              disabled={submitting}
-            />
-          </div>
-
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           <DialogFooter className="-mx-0 -mb-0 mt-1 border-t-0 bg-transparent p-0">
             <DialogClose render={<Button type="button" variant="outline" disabled={submitting} />}>
               {tCommon("cancel")}
             </DialogClose>
-            <Button type="submit" disabled={submitting || !subject.trim()}>
+            <Button type="submit" disabled={submitting || !title.trim()}>
               {submitting ? "Creating..." : tCommon("create")}
             </Button>
           </DialogFooter>

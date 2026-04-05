@@ -52,6 +52,7 @@ export interface ProjectTask {
   due_at: string | null;
   tags: string[];
   sort_order: number;
+  discussion_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,26 +73,7 @@ export interface ProjectBug {
   assignee_id: string | null;
   reporter_id: string;
   labels: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-// ── Tickets (support, project-scoped) ───────────────────────────
-
-export type TicketStatus = "open" | "pending" | "in_progress" | "resolved" | "closed";
-export type TicketType = "question" | "bug" | "feature" | "task";
-
-export interface ProjectTicket {
-  id: string;
-  project_id: string;
-  title: string;
-  description: string;
-  status: TicketStatus;
-  priority: Priority;
-  type: TicketType;
-  requester_name: string;
-  requester_email: string;
-  assignee_id: string | null;
+  discussion_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -242,12 +224,10 @@ interface ProjectState {
   activeProjectId: string | null;
   activeTaskId: string | null;
   activeBugId: string | null;
-  activeTicketId: string | null;
   activeNoteId: string | null;
 
   tasks: ProjectTask[];
   bugs: ProjectBug[];
-  tickets: ProjectTicket[];
   files: ProjectFile[];
   updates: ProjectUpdate[];
   messages: ProjectMessage[];
@@ -276,11 +256,9 @@ interface ProjectState {
   setActiveProject: (id: string | null) => void;
   setActiveTask: (id: string | null) => void;
   setActiveBug: (id: string | null) => void;
-  setActiveTicket: (id: string | null) => void;
   setActiveNote: (id: string | null) => void;
   setTasks: (tasks: ProjectTask[]) => void;
   setBugs: (bugs: ProjectBug[]) => void;
-  setTickets: (tickets: ProjectTicket[]) => void;
   setFiles: (files: ProjectFile[]) => void;
   setUpdates: (updates: ProjectUpdate[]) => void;
   setMessages: (messages: ProjectMessage[]) => void;
@@ -292,8 +270,6 @@ interface ProjectState {
   updateTask: (id: string, updates: Partial<ProjectTask>) => void;
   addBug: (bug: ProjectBug) => void;
   updateBug: (id: string, updates: Partial<ProjectBug>) => void;
-  addTicket: (ticket: ProjectTicket) => void;
-  updateTicket: (id: string, updates: Partial<ProjectTicket>) => void;
   addNote: (note: ProjectNote) => void;
   updateNote: (id: string, updates: Partial<ProjectNote>) => void;
   removeNote: (id: string) => void;
@@ -329,12 +305,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   activeProjectId: null,
   activeTaskId: null,
   activeBugId: null,
-  activeTicketId: null,
   activeNoteId: null,
 
   tasks: [],
   bugs: [],
-  tickets: [],
   files: [],
   updates: [],
   messages: [],
@@ -359,14 +333,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setProjects: (projects) => set({ projects }),
   setActiveProject: (id) =>
-    set({ activeProjectId: id, activeTaskId: null, activeBugId: null, activeTicketId: null, activeNoteId: null }),
+    set({ activeProjectId: id, activeTaskId: null, activeBugId: null, activeNoteId: null }),
   setActiveTask: (id) => set({ activeTaskId: id }),
   setActiveBug: (id) => set({ activeBugId: id }),
-  setActiveTicket: (id) => set({ activeTicketId: id }),
   setActiveNote: (id) => set({ activeNoteId: id }),
   setTasks: (tasks) => set({ tasks }),
   setBugs: (bugs) => set({ bugs }),
-  setTickets: (tickets) => set({ tickets }),
   setFiles: (files) => set({ files }),
   setUpdates: (updates) => set({ updates }),
   setMessages: (messages) => set({ messages }),
@@ -398,15 +370,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((state) => ({
       bugs: state.bugs.map((b) =>
         b.id === id ? { ...b, ...updates } : b
-      ),
-    })),
-
-  addTicket: (ticket) =>
-    set((state) => ({ tickets: [...state.tickets, ticket] })),
-  updateTicket: (id, updates) =>
-    set((state) => ({
-      tickets: state.tickets.map((t) =>
-        t.id === id ? { ...t, ...updates } : t
       ),
     })),
 

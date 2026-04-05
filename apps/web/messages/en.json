@@ -36,7 +36,8 @@
     "settings": "Settings",
     "admin": "Admin",
     "members": "Members",
-    "projects": "Projects"
+    "projects": "Projects",
+    "apiDocs": "API Docs"
   },
   "chat": {
     "newChannel": "New Channel",
@@ -127,7 +128,8 @@
       "general": "General",
       "ideas": "Ideas",
       "bugs": "Bugs",
-      "announcements": "Announcements"
+      "announcements": "Announcements",
+      "tickets": "Tickets"
     },
     "noDiscussions": "No discussions yet. Start one!"
   },

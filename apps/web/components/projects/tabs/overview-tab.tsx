@@ -54,7 +54,7 @@ interface ProjectOverviewTabProps {
 }
 
 export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
-  const { tasks, bugs, tickets, files, updates, pullRequests, commits, githubRepos } = useProjectStore();
+  const { tasks, bugs, files, updates, pullRequests, commits, githubRepos } = useProjectStore();
   const { discussions } = useDiscussionsStore();
   const hasGitHubRepo = githubRepos.some((r) => r.project_id === project.id);
   const openPrCount = pullRequests.filter((pr) => pr.state === "open").length;
@@ -62,7 +62,7 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
 
   const projectTasks = tasks.filter((t) => t.project_id === project.id);
   const projectBugs = bugs.filter((b) => b.project_id === project.id);
-  const projectTickets = tickets.filter((t) => t.project_id === project.id);
+  const projectTickets = discussions.filter((d) => d.category === "tickets" && d.project_id === project.id);
   const projectFiles = files.filter((f) => f.project_id === project.id);
   const projectDiscussions = discussions.filter((d) => d.project_id === project.id);
   const projectUpdates = updates.filter((u) => u.project_id === project.id);
@@ -74,7 +74,7 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
     (t) => t.status === "in_progress" || t.status === "review"
   ).length;
   const openTickets = projectTickets.filter(
-    (t) => t.status !== "resolved" && t.status !== "closed"
+    (d) => d.status === "open"
   ).length;
   const completedTasks = projectTasks.filter((t) => t.status === "done").length;
   const totalTasks = projectTasks.length;

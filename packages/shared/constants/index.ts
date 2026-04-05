@@ -31,8 +31,11 @@ export type Theme = (typeof THEMES)[number];
 export const ORG_PLANS = ['free', 'pro', 'enterprise'] as const;
 export type OrgPlan = (typeof ORG_PLANS)[number];
 
-export const DISCUSSION_CATEGORIES = ['general', 'ideas', 'bugs', 'announcements'] as const;
+export const DISCUSSION_CATEGORIES = ['general', 'ideas', 'bugs', 'announcements', 'tickets'] as const;
 export type DiscussionCategory = (typeof DISCUSSION_CATEGORIES)[number];
+
+export const DISCUSSION_STATUSES = ['open', 'closed', 'archived'] as const;
+export type DiscussionStatus = (typeof DISCUSSION_STATUSES)[number];
 
 export const PROJECT_STATUSES = ['planning', 'active', 'paused', 'completed'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
