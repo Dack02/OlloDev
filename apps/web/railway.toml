@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+watchPatterns = ["apps/web/**", "packages/shared/**"]
+
+[deploy]
+startCommand = "pnpm start"
+healthcheckPath = "/"
+restartPolicyType = "on_failure"
+
+[service]
+name = "web"

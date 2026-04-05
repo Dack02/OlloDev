@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "apps/api/Dockerfile"
+watchPatterns = ["apps/api/**", "packages/shared/**", "packages/db/**"]
+
+[deploy]
+healthcheckPath = "/api/v1/health"
+restartPolicyType = "on_failure"
+
+[service]
+name = "api"

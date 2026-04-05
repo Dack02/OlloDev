@@ -1,0 +1,31 @@
+{
+  "name": "@ollo-dev/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@hono/swagger-ui": "^0.5.0",
+    "@hono/zod-openapi": "^0.18.0",
+    "@ollo-dev/shared": "workspace:*",
+    "@react-email/components": "^0.0.36",
+    "@supabase/supabase-js": "^2.49.0",
+    "hono": "^4.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "resend": "^4.8.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

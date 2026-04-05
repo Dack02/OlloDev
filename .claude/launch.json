@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["/Users/leodack/AI/OlloDev/.claude/start-web.sh"],
+      "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/Users/leodack/AI/OlloDev/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "watch", "--env-file=/Users/leodack/AI/OlloDev/.env", "/Users/leodack/AI/OlloDev/apps/api/src/index.ts"],
+      "port": 8000
+    }
+  ]
+}
