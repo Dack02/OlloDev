@@ -1,9 +1,10 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
+dockerfilePath = "apps/web/Dockerfile"
+dockerContext = "."
 watchPatterns = ["apps/web/**", "packages/shared/**"]
 
 [deploy]
-startCommand = "pnpm start"
 healthcheckPath = "/"
 restartPolicyType = "on_failure"
 
