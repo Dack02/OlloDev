@@ -161,6 +161,67 @@ authedApp.openapi(deleteInstallationRoute, async (c) => {
   return c.json({ data: { disconnected: true } });
 });
 
+// ── POST /installation/sync — Detect & register existing installation ──
+const syncInstallationRoute = createRoute({
+  method: 'post',
+  path: '/installation/sync',
+  tags: ['GitHub'],
+  summary: 'Detect and register an existing GitHub App installation',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orgId: z.string().uuid() }),
+  },
+  responses: {
+    200: { description: 'Installation synced or not found' },
+    403: { description: 'Forbidden' },
+  },
+});
+
+authedApp.openapi(syncInstallationRoute, async (c) => {
+  const user = c.get('user');
+  const { orgId } = c.req.valid('param');
+
+  if (!isGitHubConfigured()) {
+    return badRequest(c, 'GitHub App is not configured on this server');
+  }
+
+  const membership = await verifyOrgMembership(orgId, user.id);
+  if (!membership || !isAdminOrOwner(membership.role)) {
+    return forbidden(c, 'Only admins and owners can sync the GitHub installation');
+  }
+
+  // List all installations of this GitHub App and find one matching this account
+  const appOctokit = getAppOctokit();
+  const { data: installations } = await appOctokit.rest.apps.listInstallations({ per_page: 100 });
+
+  if (!installations.length) {
+    return c.json({ data: null, meta: { message: 'No installations found for this GitHub App' } });
+  }
+
+  // Use the first installation (single-org setup) or try to match by account
+  const installation = installations[0];
+
+  const supabase = createServiceClient();
+
+  const { data, error } = await supabase.from('github_installations').upsert(
+    {
+      org_id: orgId,
+      installation_id: installation.id,
+      account_login: (installation.account as any)?.login ?? (installation.account as any)?.name ?? 'unknown',
+      account_type: (installation.account as any)?.type ?? 'Organization',
+      permissions: installation.permissions ?? {},
+      events: installation.events ?? [],
+      installed_by: user.id,
+      suspended_at: installation.suspended_at ? new Date(installation.suspended_at).toISOString() : null,
+    },
+    { onConflict: 'installation_id' }
+  ).select().single();
+
+  if (error) return internalError(c, error.message);
+
+  return c.json({ data });
+});
+
 // ============================================================
 // Public callback route (mounted at /api/v1/github)
 // ============================================================
@@ -188,18 +249,42 @@ const callbackRoute = createRoute({
 callbackApp.openapi(callbackRoute, async (c) => {
   const { installation_id, setup_action, state } = c.req.valid('query');
 
-  // Parse the state to get orgId
+  // Parse the state to get orgId (present when user started from our install flow)
   let orgId: string | null = null;
   if (state) {
     try {
       const parsed = JSON.parse(Buffer.from(state, 'base64url').toString());
       orgId = parsed.orgId ?? null;
     } catch {
-      return badRequest(c, 'Invalid state parameter');
+      // Invalid state — continue without it
     }
   }
 
-  if (!orgId) return badRequest(c, 'Missing orgId in state');
+  const supabase = createServiceClient();
+
+  // If no orgId from state, check if this installation is already linked to an org,
+  // or fall back to the first org (single-org setup)
+  if (!orgId) {
+    const { data: existing } = await supabase
+      .from('github_installations')
+      .select('org_id')
+      .eq('installation_id', installation_id)
+      .maybeSingle();
+
+    if (existing) {
+      orgId = existing.org_id;
+    } else {
+      // Fall back to first org in the system
+      const { data: firstOrg } = await supabase
+        .from('orgs')
+        .select('id')
+        .limit(1)
+        .single();
+      orgId = firstOrg?.id ?? null;
+    }
+  }
+
+  if (!orgId) return badRequest(c, 'Could not determine organization for this installation');
 
   if (setup_action === 'install' || !setup_action) {
     // Fetch installation details from GitHub
@@ -207,8 +292,6 @@ callbackApp.openapi(callbackRoute, async (c) => {
     const { data: installation } = await appOctokit.rest.apps.getInstallation({
       installation_id,
     });
-
-    const supabase = createServiceClient();
 
     // Upsert — handles reinstallation
     const { error } = await supabase.from('github_installations').upsert(
@@ -230,8 +313,8 @@ callbackApp.openapi(callbackRoute, async (c) => {
     }
   }
 
-  // Redirect back to the app's settings or project page
-  const webUrl = process.env.NEXT_PUBLIC_API_URL?.replace(':8000', ':3000') ?? 'http://localhost:3000';
+  // Redirect back to the app
+  const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://dev.ollosoft.io';
   return c.redirect(`${webUrl}/en/settings?github=connected`);
 });
 

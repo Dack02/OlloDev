@@ -61,17 +61,27 @@ export function GitTab({ projectId }: GitTabProps) {
   const projectRepos = githubRepos.filter((r) => r.project_id === projectId);
   const primaryRepo = projectRepos.find((r) => r.is_primary) ?? projectRepos[0];
 
-  // Check installation status
+  // Check installation status, auto-sync if configured but not found
   useEffect(() => {
     if (!orgId || !accessToken) return;
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/github/installation`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    )
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const base = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/github`;
+
+    fetch(`${base}/installation`, { headers })
       .then((r) => r.json())
-      .then((json) => {
-        setHasInstallation(!!json.data);
+      .then(async (json) => {
         setIsConfigured(json.meta?.is_configured ?? null);
+        if (json.data) {
+          setHasInstallation(true);
+        } else if (json.meta?.is_configured) {
+          // GitHub is configured but no installation found — try to sync
+          const syncRes = await fetch(`${base}/installation/sync`, {
+            method: "POST",
+            headers,
+          });
+          const syncJson = await syncRes.json();
+          setHasInstallation(!!syncJson.data);
+        }
       })
       .catch(() => {})
       .finally(() => setInstallationChecked(true));
