@@ -6,6 +6,7 @@ import { PinIcon, LockIcon, ThumbsUpIcon, MessageSquareIcon } from "lucide-react
 import { FilterBar } from "@/components/ui/filter-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useDiscussionsStore } from "@/stores/discussions-store";
+import { useProjectStore } from "@/stores/project-store";
 import { useAuth } from "@/lib/auth-context";
 import type { Discussion } from "@ollo-dev/shared/types";
 
@@ -31,6 +32,10 @@ interface DiscussionCardProps {
 
 function DiscussionCard({ discussion, isActive, onClick }: DiscussionCardProps) {
   const t = useTranslations("discussions");
+  const { projects } = useProjectStore();
+  const projectName = discussion.project_id
+    ? projects.find((p) => p.id === discussion.project_id)?.name
+    : null;
 
   return (
     <button
@@ -64,6 +69,11 @@ function DiscussionCard({ discussion, isActive, onClick }: DiscussionCardProps) 
                 value={discussion.category}
                 label={t(`categories.${discussion.category}` as Parameters<typeof t>[0])}
               />
+            )}
+            {projectName && (
+              <span className="rounded-md bg-accent-muted px-1.5 py-[2px] text-[10px] font-medium text-accent">
+                {projectName}
+              </span>
             )}
             {discussion.tags.slice(0, 3).map((tag) => (
               <span

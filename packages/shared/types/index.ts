@@ -107,6 +107,7 @@ export interface Message {
 export interface Discussion {
   id: string;
   org_id: string;
+  project_id: string | null;
   title: string;
   body: string;
   body_html: string | null;
@@ -173,6 +174,21 @@ export interface WikiPageVersion {
   change_note: string | null;
   version: number;
   created_at: string;
+}
+
+// ============================================================
+// Project Notes
+// ============================================================
+export interface ProjectNote {
+  id: string;
+  project_id: string;
+  title: string;
+  content: string;
+  author_id: string | null;
+  is_pinned: boolean;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================

@@ -79,6 +79,9 @@
   --info: #3b82f6;
   --info-muted: rgba(59, 130, 246, 0.1);
 
+  /* Sidebar */
+  --sidebar-header-bg: color-mix(in srgb, var(--accent) 4%, var(--surface-secondary));
+
   /* ── shadcn/ui compatibility mappings ── */
   --background: var(--surface-primary);
   --foreground: var(--text-primary);
@@ -141,6 +144,9 @@
   --error-muted: rgba(248, 113, 113, 0.1);
   --info: #6b9eff;
   --info-muted: rgba(107, 158, 255, 0.1);
+
+  /* Sidebar */
+  --sidebar-header-bg: color-mix(in srgb, var(--accent) 4%, var(--surface-secondary));
 
   /* ── shadcn/ui compatibility mappings (dark) ── */
   --background: var(--surface-primary);
@@ -224,6 +230,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-header-bg: var(--sidebar-header-bg);
 }
 
 body {
@@ -252,6 +259,141 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+/* ============================================================
+   Color Theme Overrides
+   Each theme sets accent family + shadcn mappings for light & dark.
+   ============================================================ */
+
+/* Emerald */
+[data-theme="emerald"] {
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --accent-active: #047857;
+  --accent-muted: rgba(16, 185, 129, 0.08);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #10b981;
+  --info-muted: rgba(16, 185, 129, 0.1);
+}
+[data-theme="emerald"].dark {
+  --accent: #34d399;
+  --accent-hover: #2bc48a;
+  --accent-active: #22b57b;
+  --accent-muted: rgba(52, 211, 153, 0.1);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #34d399;
+  --info-muted: rgba(52, 211, 153, 0.1);
+}
+
+/* Violet */
+[data-theme="violet"] {
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --accent-active: #6d28d9;
+  --accent-muted: rgba(139, 92, 246, 0.08);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #8b5cf6;
+  --info-muted: rgba(139, 92, 246, 0.1);
+}
+[data-theme="violet"].dark {
+  --accent: #a78bfa;
+  --accent-hover: #9775f0;
+  --accent-active: #8760e6;
+  --accent-muted: rgba(167, 139, 250, 0.1);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #a78bfa;
+  --info-muted: rgba(167, 139, 250, 0.1);
+}
+
+/* Rose */
+[data-theme="rose"] {
+  --accent: #f43f5e;
+  --accent-hover: #e11d48;
+  --accent-active: #be123c;
+  --accent-muted: rgba(244, 63, 94, 0.08);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #f43f5e;
+  --info-muted: rgba(244, 63, 94, 0.1);
+}
+[data-theme="rose"].dark {
+  --accent: #fb7185;
+  --accent-hover: #f06278;
+  --accent-active: #e5536b;
+  --accent-muted: rgba(251, 113, 133, 0.1);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #fb7185;
+  --info-muted: rgba(251, 113, 133, 0.1);
+}
+
+/* Amber */
+[data-theme="amber"] {
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-active: #b45309;
+  --accent-muted: rgba(245, 158, 11, 0.08);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #f59e0b;
+  --info-muted: rgba(245, 158, 11, 0.1);
+}
+[data-theme="amber"].dark {
+  --accent: #fbbf24;
+  --accent-hover: #f0b015;
+  --accent-active: #e5a106;
+  --accent-muted: rgba(251, 191, 36, 0.1);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #fbbf24;
+  --info-muted: rgba(251, 191, 36, 0.1);
+}
+
+/* Slate */
+[data-theme="slate"] {
+  --accent: #64748b;
+  --accent-hover: #475569;
+  --accent-active: #334155;
+  --accent-muted: rgba(100, 116, 139, 0.08);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #64748b;
+  --info-muted: rgba(100, 116, 139, 0.1);
+}
+[data-theme="slate"].dark {
+  --accent: #94a3b8;
+  --accent-hover: #8494a9;
+  --accent-active: #74859a;
+  --accent-muted: rgba(148, 163, 184, 0.1);
+  --primary: var(--accent);
+  --ring: var(--accent);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent);
+  --info: #94a3b8;
+  --info-muted: rgba(148, 163, 184, 0.1);
 }
 
 /* Selection color */

@@ -9,7 +9,10 @@ import {
 } from "@/stores/project-store";
 import { DetailPanel } from "@/components/layout/detail-panel";
 import { FilterBar } from "@/components/ui/filter-bar";
+import { useAuth } from "@/lib/auth-context";
+import { useOrgMembers } from "@/hooks/use-org-members";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import { CreateBugDialog } from "@/components/projects/create-bug-dialog";
 import {
   BugIcon,
@@ -67,9 +70,52 @@ interface BugsTabProps {
 }
 
 export function BugsTab({ projectId }: BugsTabProps) {
-  const { bugs, activeBugId, setActiveBug, updateBug, detailPanelOpen, setDetailPanelOpen } =
+  const { bugs, activeBugId, setActiveBug, updateBug, detailPanelOpen, setDetailPanelOpen, setBugs } =
     useProjectStore();
+  const { org, accessToken } = useAuth();
+  const orgId = org?.id;
+  const members = useOrgMembers();
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const handleUpdate = async (bugId: string, updates: Partial<ProjectBug>) => {
+    updateBug(bugId, updates);
+    if (orgId && accessToken) {
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/projects/${projectId}/bugs/${bugId}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updates),
+          }
+        );
+      } catch (error) {
+        notify.error("Update failed", "Could not update bug report");
+      }
+    }
+  };
+
+  const handleDelete = async (bugId: string) => {
+    if (orgId && accessToken) {
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orgs/${orgId}/projects/${projectId}/bugs/${bugId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+      } catch (error) {
+        notify.error("Delete failed", "Could not delete bug report");
+      }
+    }
+    setBugs(bugs.filter((b) => b.id !== bugId));
+    setDetailPanelOpen(false);
+    setActiveBug(null);
+  };
 
   const projectBugs = bugs.filter((b) => b.project_id === projectId);
 
@@ -209,7 +255,7 @@ export function BugsTab({ projectId }: BugsTabProps) {
                 <select
                   value={activeBug.status}
                   onChange={(e) =>
-                    updateBug(activeBug.id, {
+                    handleUpdate(activeBug.id, {
                       status: e.target.value as BugStatus,
                     })
                   }
@@ -230,7 +276,7 @@ export function BugsTab({ projectId }: BugsTabProps) {
                 <select
                   value={activeBug.severity}
                   onChange={(e) =>
-                    updateBug(activeBug.id, {
+                    handleUpdate(activeBug.id, {
                       severity: e.target.value as BugSeverity,
                     })
                   }
@@ -251,7 +297,7 @@ export function BugsTab({ projectId }: BugsTabProps) {
                 <select
                   value={activeBug.priority}
                   onChange={(e) =>
-                    updateBug(activeBug.id, {
+                    handleUpdate(activeBug.id, {
                       priority: e.target.value as "low" | "medium" | "high" | "urgent",
                     })
                   }
@@ -268,14 +314,18 @@ export function BugsTab({ projectId }: BugsTabProps) {
               </DetailRow>
 
               <DetailRow label="Assignee">
-                {activeBug.assignee_id ? (
-                  <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
-                    <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
-                      L
+                {activeBug.assignee_id ? (() => {
+                  const member = members.get(activeBug.assignee_id!);
+                  const name = member?.display_name ?? "Unknown";
+                  return (
+                    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
+                      <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                      {name}
                     </span>
-                    Leo
-                  </span>
-                ) : (
+                  );
+                })() : (
                   <span className="text-[12px] text-text-tertiary">Unassigned</span>
                 )}
               </DetailRow>
@@ -309,15 +359,7 @@ export function BugsTab({ projectId }: BugsTabProps) {
             {/* Delete button */}
             <div className="mt-5 pt-4 border-t border-border-subtle">
               <button
-                onClick={() => {
-                  // In production, this would call the DELETE API
-                  const { bugs } = useProjectStore.getState();
-                  useProjectStore.setState({
-                    bugs: bugs.filter((b) => b.id !== activeBug.id),
-                    activeBugId: null,
-                  });
-                  setDetailPanelOpen(false);
-                }}
+                onClick={() => handleDelete(activeBug.id)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-error hover:bg-error-muted transition-colors"
               >
                 <TrashIcon className="size-3.5" />

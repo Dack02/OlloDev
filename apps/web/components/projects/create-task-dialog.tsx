@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjectStore } from "@/stores/project-store";
 import { useAuth } from "@/lib/auth-context";
+import { notify } from "@/lib/notify";
 import { PlusIcon } from "lucide-react";
 
 interface CreateTaskDialogProps {
@@ -99,10 +100,13 @@ export function CreateTaskDialog({ projectId, trigger }: CreateTaskDialogProps) 
           updated_at: new Date().toISOString(),
         });
       }
+      notify.success("Task created", `"${title}" added.`);
       resetForm();
       setOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      notify.error("Failed to create task", msg);
     } finally {
       setSubmitting(false);
     }

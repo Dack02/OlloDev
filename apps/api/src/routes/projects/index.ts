@@ -16,6 +16,39 @@ const app = new OpenAPIHono<{ Variables: AuthVariables }>();
 
 app.use('/*', authMiddleware);
 
+type ProjectHealth = 'on_track' | 'at_risk' | 'off_track';
+type ProjectPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+type CreateProjectInput = {
+  name: string;
+  description?: string;
+  color: string;
+  status: 'planning' | 'active' | 'paused' | 'completed';
+  priority: ProjectPriority;
+  health: ProjectHealth;
+  client_name?: string;
+  project_url?: string;
+  repository_url?: string;
+  start_date?: string;
+  target_date?: string;
+  key_outcome?: string;
+};
+
+type UpdateProjectInput = {
+  name?: string;
+  description?: string | null;
+  color?: string;
+  status?: 'planning' | 'active' | 'paused' | 'completed';
+  priority?: ProjectPriority;
+  health?: ProjectHealth;
+  client_name?: string | null;
+  project_url?: string | null;
+  repository_url?: string | null;
+  start_date?: string | null;
+  target_date?: string | null;
+  key_outcome?: string | null;
+};
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -34,6 +67,12 @@ async function verifyOrgMembership(orgId: string, userId: string) {
 
 function isAdminOrOwner(role: string): boolean {
   return ['owner', 'admin'].includes(role);
+}
+
+function toNullable(value: string | null | undefined) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return value;
 }
 
 // ============================================================
@@ -133,7 +172,7 @@ const createProjectRoute = createRoute({
 app.openapi(createProjectRoute, async (c) => {
   const user = c.get('user');
   const { orgId } = c.req.valid('param');
-  const body = c.req.valid('json');
+  const body = c.req.valid('json') as CreateProjectInput;
   const supabase = createServiceClient();
 
   const membership = await verifyOrgMembership(orgId, user.id);
@@ -148,6 +187,14 @@ app.openapi(createProjectRoute, async (c) => {
       description: body.description ?? null,
       color: body.color,
       status: body.status,
+      priority: body.priority,
+      health: body.health,
+      client_name: toNullable(body.client_name),
+      project_url: toNullable(body.project_url),
+      repository_url: toNullable(body.repository_url),
+      start_date: toNullable(body.start_date),
+      target_date: toNullable(body.target_date),
+      key_outcome: toNullable(body.key_outcome),
     })
     .select()
     .single();
@@ -238,7 +285,7 @@ const updateProjectRoute = createRoute({
 app.openapi(updateProjectRoute, async (c) => {
   const user = c.get('user');
   const { orgId, projectId } = c.req.valid('param');
-  const body = c.req.valid('json');
+  const body = c.req.valid('json') as UpdateProjectInput;
   const supabase = createServiceClient();
 
   const membership = await verifyOrgMembership(orgId, user.id);
@@ -253,10 +300,23 @@ app.openapi(updateProjectRoute, async (c) => {
 
   if (fetchErr) return internalError(c, fetchErr.message);
   if (!existing) return notFound(c, 'Project not found');
+  if (!isAdminOrOwner(membership.role)) {
+    return forbidden(c, 'Only admins and owners can update projects');
+  }
+
+  const updates = {
+    ...body,
+    client_name: toNullable(body.client_name),
+    project_url: toNullable(body.project_url),
+    repository_url: toNullable(body.repository_url),
+    start_date: toNullable(body.start_date),
+    target_date: toNullable(body.target_date),
+    key_outcome: toNullable(body.key_outcome),
+  };
 
   const { data: project, error } = await supabase
     .from('projects')
-    .update(body)
+    .update(updates)
     .eq('id', projectId)
     .select()
     .single();

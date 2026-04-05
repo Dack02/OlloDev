@@ -45,7 +45,8 @@ app.openapi(listOrgsRoute, async (c) => {
   const { data: memberships, error: memErr } = await supabase
     .from('org_members')
     .select('org_id, role, joined_at')
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: true });
 
   if (memErr) return internalError(c, memErr.message);
   if (!memberships || memberships.length === 0) return c.json({ data: [] });
@@ -61,10 +62,17 @@ app.openapi(listOrgsRoute, async (c) => {
 
   // Merge role info onto each org
   const membershipMap = Object.fromEntries(memberships.map((m) => [m.org_id, m]));
-  const result = (orgs ?? []).map((org) => ({
-    ...org,
-    membership: membershipMap[org.id],
-  }));
+  const result = (orgs ?? [])
+    .map((org) => ({
+      ...org,
+      membership: membershipMap[org.id],
+    }))
+    .sort((a, b) => {
+      const aJoinedAt = a.membership?.joined_at ?? '';
+      const bJoinedAt = b.membership?.joined_at ?? '';
+      if (aJoinedAt !== bJoinedAt) return aJoinedAt.localeCompare(bJoinedAt);
+      return a.name.localeCompare(b.name);
+    });
 
   return c.json({ data: result });
 });
@@ -275,12 +283,43 @@ app.openapi(listMembersRoute, async (c) => {
 
   const { data: members, error } = await supabase
     .from('org_members')
-    .select('*, profiles(*)')
+    .select('*')
     .eq('org_id', orgId);
 
   if (error) return internalError(c, error.message);
 
-  return c.json({ data: members ?? [] });
+  // Fetch profiles for all member user_ids
+  const userIds = (members ?? []).map((m) => m.user_id);
+  const { data: profiles } = userIds.length > 0
+    ? await supabase.from('profiles').select('*').in('id', userIds)
+    : { data: [] };
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  // Fallback: fetch auth user metadata for members without profiles
+  const missingIds = userIds.filter((id) => !profileMap.has(id));
+  if (missingIds.length > 0) {
+    const { data: usersData } = await supabase.auth.admin.listUsers();
+    if (usersData?.users) {
+      for (const u of usersData.users) {
+        if (missingIds.includes(u.id)) {
+          profileMap.set(u.id, {
+            id: u.id,
+            display_name: (u.user_metadata?.display_name as string) ?? null,
+            email: u.email ?? null,
+            avatar_url: (u.user_metadata?.avatar_url as string) ?? null,
+          });
+        }
+      }
+    }
+  }
+
+  const enriched = (members ?? []).map((m) => ({
+    ...m,
+    profiles: profileMap.get(m.user_id) ?? null,
+  }));
+
+  return c.json({ data: enriched });
 });
 
 // ============================================================

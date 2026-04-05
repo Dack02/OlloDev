@@ -12,7 +12,9 @@ import { DetailPanel } from "@/components/layout/detail-panel";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { CreateTaskDialog } from "@/components/projects/create-task-dialog";
 import { useAuth } from "@/lib/auth-context";
+import { useOrgMembers } from "@/hooks/use-org-members";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import {
   CircleIcon,
   CircleDotIcon,
@@ -75,6 +77,7 @@ export function DevTab({ projectId }: DevTabProps) {
     useProjectStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
+  const members = useOrgMembers();
   const [typeFilter, setTypeFilter] = useState("all");
 
   const projectTasks = tasks.filter((t) => t.project_id === projectId);
@@ -135,10 +138,10 @@ export function DevTab({ projectId }: DevTabProps) {
           }
         );
         if (!response.ok) {
-          console.error("Failed to update task:", response.statusText);
+          notify.error("Update failed", "Could not update task");
         }
       } catch (error) {
-        console.error("Error updating task:", error);
+        notify.error("Update failed", "Could not reach the server");
       }
     }
   };
@@ -157,10 +160,10 @@ export function DevTab({ projectId }: DevTabProps) {
           }
         );
         if (!response.ok) {
-          console.error("Failed to delete task:", response.statusText);
+          notify.error("Delete failed", "Could not delete task");
         }
       } catch (error) {
-        console.error("Error deleting task:", error);
+        notify.error("Delete failed", "Could not reach the server");
       }
     }
 
@@ -312,14 +315,18 @@ export function DevTab({ projectId }: DevTabProps) {
               </DetailRow>
 
               <DetailRow label="Assignee">
-                {activeTask.assignee_id ? (
-                  <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
-                    <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
-                      L
+                {activeTask.assignee_id ? (() => {
+                  const member = members.get(activeTask.assignee_id!);
+                  const name = member?.display_name ?? "Unknown";
+                  return (
+                    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
+                      <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                      {name}
                     </span>
-                    Leo
-                  </span>
-                ) : (
+                  );
+                })() : (
                   <span className="text-[12px] text-text-tertiary">Unassigned</span>
                 )}
               </DetailRow>

@@ -11,7 +11,9 @@ import { DetailPanel } from "@/components/layout/detail-panel";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { CreateTicketDialog } from "@/components/projects/create-ticket-dialog";
 import { useAuth } from "@/lib/auth-context";
+import { useOrgMembers } from "@/hooks/use-org-members";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import {
   CircleIcon,
   ClockIcon,
@@ -77,6 +79,7 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
   const { tickets, activeTicketId, setActiveTicket, detailPanelOpen, setDetailPanelOpen, updateTicket, setTickets } =
     useProjectStore();
   const { org, accessToken } = useAuth();
+  const members = useOrgMembers();
   const [statusFilter, setStatusFilter] = useState("all");
 
   const projectTickets = tickets.filter((t) => t.project_id === projectId);
@@ -127,10 +130,10 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
           }
         );
         if (!response.ok) {
-          console.error("Failed to update ticket");
+          notify.error("Update failed", "Could not update ticket");
         }
       } catch (error) {
-        console.error("Error updating ticket:", error);
+        notify.error("Update failed", "Could not reach the server");
       }
     }
     // Always update local store
@@ -151,10 +154,10 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
           }
         );
         if (!response.ok) {
-          console.error("Failed to delete ticket");
+          notify.error("Delete failed", "Could not delete ticket");
         }
       } catch (error) {
-        console.error("Error deleting ticket:", error);
+        notify.error("Delete failed", "Could not reach the server");
       }
     }
     // Remove from local store
@@ -319,14 +322,18 @@ export function TicketsTab({ projectId }: TicketsTabProps) {
               </DetailRow>
 
               <DetailRow label="Assignee">
-                {activeTicket.assignee_id ? (
-                  <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
-                    <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
-                      L
+                {activeTicket.assignee_id ? (() => {
+                  const member = members.get(activeTicket.assignee_id!);
+                  const name = member?.display_name ?? "Unknown";
+                  return (
+                    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
+                      <span className="size-5 rounded-full bg-accent-muted flex items-center justify-center text-[9px] font-semibold text-accent">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                      {name}
                     </span>
-                    Leo
-                  </span>
-                ) : (
+                  );
+                })() : (
                   <span className="text-[12px] text-text-tertiary">Unassigned</span>
                 )}
               </DetailRow>

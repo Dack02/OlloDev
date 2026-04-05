@@ -11,7 +11,7 @@ max_rows = 1000
 [db]
 port = 54432
 shadow_port = 54430
-major_version = 15
+major_version = 17
 
 [db.pooler]
 enabled = false

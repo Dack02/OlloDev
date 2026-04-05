@@ -27,6 +27,7 @@ import projectTaskRoutes from './routes/projects/tasks.js';
 import projectTicketRoutes from './routes/projects/tickets.js';
 import projectFileRoutes from './routes/projects/files.js';
 import projectMessageRoutes from './routes/projects/messages.js';
+import projectNoteRoutes from './routes/projects/notes.js';
 
 const app = new OpenAPIHono();
 
@@ -64,6 +65,7 @@ app.route('/api/v1/orgs/:orgId/projects/:projectId/tasks', projectTaskRoutes);
 app.route('/api/v1/orgs/:orgId/projects/:projectId/tickets', projectTicketRoutes);
 app.route('/api/v1/orgs/:orgId/projects/:projectId/files', projectFileRoutes);
 app.route('/api/v1/orgs/:orgId/projects/:projectId/messages', projectMessageRoutes);
+app.route('/api/v1/orgs/:orgId/projects/:projectId/notes', projectNoteRoutes);
 
 // ============================================================
 // Health check

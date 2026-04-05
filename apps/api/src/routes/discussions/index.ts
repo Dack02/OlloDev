@@ -50,6 +50,7 @@ const listDiscussionsRoute = createRoute({
     query: z.object({
       category: z.string().optional(),
       tag: z.string().optional(),
+      project_id: z.string().uuid().optional(),
       cursor: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(100).default(25),
     }),
@@ -74,7 +75,7 @@ const listDiscussionsRoute = createRoute({
 app.openapi(listDiscussionsRoute, async (c) => {
   const user = c.get('user');
   const { orgId } = c.req.valid('param');
-  const { category, tag, cursor, limit } = c.req.valid('query');
+  const { category, tag, project_id, cursor, limit } = c.req.valid('query');
   const supabase = createServiceClient();
 
   const membership = await verifyOrgMembership(orgId, user.id);
@@ -89,6 +90,7 @@ app.openapi(listDiscussionsRoute, async (c) => {
 
   if (category) query = query.eq('category', category);
   if (tag) query = query.contains('tags', [tag]);
+  if (project_id) query = query.eq('project_id', project_id);
   if (cursor) query = query.lt('created_at', cursor);
 
   const { data: discussions, error } = await query;
@@ -141,6 +143,17 @@ app.openapi(createDiscussionRoute, async (c) => {
   const membership = await verifyOrgMembership(orgId, user.id);
   if (!membership) return forbidden(c, 'You are not a member of this organization');
 
+  // Verify project belongs to this org if provided
+  if (body.project_id) {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', body.project_id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (!proj) return badRequest(c, 'Project not found in this organization');
+  }
+
   const { data: discussion, error } = await supabase
     .from('discussions')
     .insert({
@@ -150,6 +163,7 @@ app.openapi(createDiscussionRoute, async (c) => {
       body: body.body,
       category: body.category ?? null,
       tags: body.tags,
+      project_id: body.project_id ?? null,
     })
     .select()
     .single();
@@ -261,6 +275,17 @@ app.openapi(updateDiscussionRoute, async (c) => {
 
   if (!isAuthor && !isAdmin) {
     return forbidden(c, 'Only the author or an admin/owner can update this discussion');
+  }
+
+  // Verify project belongs to this org if changing project_id
+  if (body.project_id) {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', body.project_id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (!proj) return badRequest(c, 'Project not found in this organization');
   }
 
   // Non-admins cannot pin or lock

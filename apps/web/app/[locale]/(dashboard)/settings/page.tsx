@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { useAuth } from "@/lib/auth-context";
+import { useThemeStore, COLOR_THEMES, type ColorThemeKey } from "@/stores/theme-store";
 
 interface ApiKey {
   id: string;
@@ -44,6 +45,7 @@ interface OrgMember {
 export default function SettingsPage() {
   const t = useTranslations("settings");
   const { user, org, accessToken } = useAuth();
+  const { colorTheme, setColorTheme } = useThemeStore();
 
   // Profile state
   const [displayName, setDisplayName] = useState("");
@@ -402,26 +404,59 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">
-                    {t("locale")}
-                  </label>
-                  <Input
-                    value={locale}
-                    onChange={(e) => setLocale(e.target.value)}
-                    placeholder="en"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">
-                    {t("theme")}
-                  </label>
-                  <Input
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                    placeholder="system"
-                  />
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  {t("locale")}
+                </label>
+                <Input
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value)}
+                  placeholder="en"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  {t("colorTheme")}
+                </label>
+                <p className="text-xs text-text-secondary mb-3">
+                  {t("colorThemeDescription")}
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  {COLOR_THEMES.map((ct) => {
+                    const selected = colorTheme === ct.key;
+                    return (
+                      <button
+                        key={ct.key}
+                        type="button"
+                        onClick={() => setColorTheme(ct.key)}
+                        className={`relative flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-2.5 text-left transition-all ${
+                          selected
+                            ? "border-accent bg-accent-muted ring-1 ring-accent"
+                            : "border-border-default bg-surface-elevated hover:border-border-strong"
+                        }`}
+                      >
+                        <span
+                          className="h-5 w-5 shrink-0 rounded-full ring-1 ring-black/10"
+                          style={{ backgroundColor: ct.light }}
+                        />
+                        <span className="text-sm font-medium text-text-primary">
+                          {ct.label}
+                        </span>
+                        {selected && (
+                          <svg
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-accent"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -533,8 +568,8 @@ export default function SettingsPage() {
                 <CardDescription>Manage API keys for programmatic access.</CardDescription>
               </div>
               <Dialog open={keyDialogOpen} onOpenChange={(v) => { setKeyDialogOpen(v); if (!v) setGeneratedKey(null); }}>
-                <DialogTrigger asChild>
-                  <Button size="sm">{t("createApiKey")}</Button>
+                <DialogTrigger render={<Button size="sm" />}>
+                  {t("createApiKey")}
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>

@@ -1,0 +1,2 @@
+- [Testing and tracking preferences](feedback_testing.md) — Runtime test each phase, maintain PROGRESS.md
+- [Local test users](project_test_users.md) — test@ollodev.com and demo@ollodev.com exist in local Supabase

@@ -126,6 +126,7 @@ export const createDiscussionSchema = z.object({
   body: z.string().min(1).max(50000),
   category: z.enum(DISCUSSION_CATEGORIES).optional(),
   tags: z.array(z.string().max(30)).max(5).default([]),
+  project_id: z.string().uuid().nullable().optional(),
 });
 
 export const updateDiscussionSchema = z.object({
@@ -135,6 +136,7 @@ export const updateDiscussionSchema = z.object({
   is_pinned: z.boolean().optional(),
   is_locked: z.boolean().optional(),
   tags: z.array(z.string().max(30)).max(5).optional(),
+  project_id: z.string().uuid().nullable().optional(),
 });
 
 export const createDiscussionReplySchema = z.object({
@@ -330,6 +332,14 @@ export const createProjectSchema = z.object({
   description: z.string().max(5000).optional(),
   color: z.string().max(7).default('#3b82f6'),
   status: z.enum(PROJECT_STATUSES).default('planning'),
+  priority: z.enum(BUG_PRIORITIES).default('medium'),
+  health: z.enum(['on_track', 'at_risk', 'off_track']).default('on_track'),
+  client_name: z.string().max(200).optional(),
+  project_url: z.string().url().max(2000).optional().or(z.literal("")),
+  repository_url: z.string().url().max(2000).optional().or(z.literal("")),
+  start_date: z.string().date().optional().or(z.literal("")),
+  target_date: z.string().date().optional().or(z.literal("")),
+  key_outcome: z.string().max(1000).optional(),
 });
 
 export const updateProjectSchema = z.object({
@@ -337,6 +347,14 @@ export const updateProjectSchema = z.object({
   description: z.string().max(5000).nullable().optional(),
   color: z.string().max(7).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
+  priority: z.enum(BUG_PRIORITIES).optional(),
+  health: z.enum(['on_track', 'at_risk', 'off_track']).optional(),
+  client_name: z.string().max(200).nullable().optional(),
+  project_url: z.union([z.string().url().max(2000), z.literal("")]).nullable().optional(),
+  repository_url: z.union([z.string().url().max(2000), z.literal("")]).nullable().optional(),
+  start_date: z.union([z.string().date(), z.literal("")]).nullable().optional(),
+  target_date: z.union([z.string().date(), z.literal("")]).nullable().optional(),
+  key_outcome: z.string().max(1000).nullable().optional(),
 });
 
 // ============================================================
@@ -407,6 +425,23 @@ export const updateProjectTicketSchema = z.object({
   priority: z.enum(BUG_PRIORITIES).optional(),
   type: z.enum(PROJECT_TICKET_TYPES).optional(),
   assignee_id: z.string().uuid().nullable().optional(),
+});
+
+// ============================================================
+// Project Notes
+// ============================================================
+export const createNoteSchema = z.object({
+  title: z.string().min(1).max(200),
+  content: z.string().max(50000).default(''),
+  is_pinned: z.boolean().default(false),
+  color: z.string().max(7).nullable().optional(),
+});
+
+export const updateNoteSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().max(50000).optional(),
+  is_pinned: z.boolean().optional(),
+  color: z.string().max(7).nullable().optional(),
 });
 
 // ============================================================

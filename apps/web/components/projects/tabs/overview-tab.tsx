@@ -6,11 +6,19 @@ import {
   TicketIcon,
   CodeIcon,
   FileIcon,
+  MessageSquareIcon,
   TrendingUpIcon,
   AlertCircleIcon,
   CheckCircle2Icon,
   ClockIcon,
+  ArrowUpIcon,
+  CalendarDaysIcon,
+  HeartPulseIcon,
+  LinkIcon,
+  TargetIcon,
+  UserRoundIcon,
 } from "lucide-react";
+import { useDiscussionsStore } from "@/stores/discussions-store";
 
 function StatCard({
   label,
@@ -44,11 +52,13 @@ interface ProjectOverviewTabProps {
 
 export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
   const { tasks, bugs, tickets, files, updates } = useProjectStore();
+  const { discussions } = useDiscussionsStore();
 
   const projectTasks = tasks.filter((t) => t.project_id === project.id);
   const projectBugs = bugs.filter((b) => b.project_id === project.id);
   const projectTickets = tickets.filter((t) => t.project_id === project.id);
   const projectFiles = files.filter((f) => f.project_id === project.id);
+  const projectDiscussions = discussions.filter((d) => d.project_id === project.id);
   const projectUpdates = updates.filter((u) => u.project_id === project.id);
 
   const openBugs = projectBugs.filter(
@@ -63,14 +73,97 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
   const completedTasks = projectTasks.filter((t) => t.status === "done").length;
   const totalTasks = projectTasks.length;
   const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const detailItems = [
+    { label: "Priority", value: project.priority.replace("_", " "), icon: ArrowUpIcon },
+    { label: "Health", value: project.health.replace("_", " "), icon: HeartPulseIcon },
+    { label: "Client / owner", value: project.client_name, icon: UserRoundIcon },
+    { label: "Start date", value: project.start_date ? new Date(project.start_date).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) : null, icon: CalendarDaysIcon },
+    { label: "Target date", value: project.target_date ? new Date(project.target_date).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) : null, icon: TargetIcon },
+  ].filter((item) => item.value);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-6 py-5 space-y-6">
         {/* Description */}
-        <p className="text-[13px] text-text-secondary leading-relaxed max-w-2xl">
-          {project.description}
-        </p>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+          <div className="space-y-4">
+            <p className="text-[13px] text-text-secondary leading-relaxed max-w-2xl">
+              {project.description || "No description yet."}
+            </p>
+            {project.key_outcome && (
+              <div className="rounded-radius-md border border-border-subtle bg-surface-elevated p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Key outcome
+                </p>
+                <p className="mt-2 text-[13px] leading-relaxed text-text-primary">
+                  {project.key_outcome}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-radius-md border border-border-subtle bg-surface-elevated p-4">
+            <h3 className="text-[12px] font-semibold uppercase tracking-wider text-text-tertiary">
+              Project details
+            </h3>
+            <div className="mt-3 space-y-3">
+              {detailItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="flex items-start gap-2.5">
+                    <div className="mt-0.5 rounded-md bg-surface-tertiary p-1.5 text-text-secondary">
+                      <Icon className="size-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                        {item.label}
+                      </p>
+                      <p className="mt-0.5 text-[13px] text-text-primary capitalize">
+                        {item.value}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              {project.project_url && (
+                <a
+                  href={project.project_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-start gap-2.5 text-accent hover:text-accent-hover"
+                >
+                  <div className="mt-0.5 rounded-md bg-accent-muted p-1.5">
+                    <LinkIcon className="size-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                      Project URL
+                    </p>
+                    <p className="mt-0.5 text-[13px] break-all">{project.project_url}</p>
+                  </div>
+                </a>
+              )}
+              {project.repository_url && (
+                <a
+                  href={project.repository_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-start gap-2.5 text-accent hover:text-accent-hover"
+                >
+                  <div className="mt-0.5 rounded-md bg-accent-muted p-1.5">
+                    <LinkIcon className="size-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                      Repository
+                    </p>
+                    <p className="mt-0.5 text-[13px] break-all">{project.repository_url}</p>
+                  </div>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Progress */}
         <div>
@@ -94,7 +187,7 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatCard
             label="Open bugs"
             value={openBugs}
@@ -112,6 +205,12 @@ export function ProjectOverviewTab({ project }: ProjectOverviewTabProps) {
             value={openTickets}
             icon={TicketIcon}
             color="bg-warning-muted text-warning"
+          />
+          <StatCard
+            label="Discussions"
+            value={projectDiscussions.length}
+            icon={MessageSquareIcon}
+            color="bg-purple-500/10 text-purple-500"
           />
           <StatCard
             label="Files"

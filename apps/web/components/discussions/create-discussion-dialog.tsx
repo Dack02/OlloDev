@@ -14,17 +14,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDiscussionsStore } from "@/stores/discussions-store";
+import { useProjectStore } from "@/stores/project-store";
 import { useAuth } from "@/lib/auth-context";
+import { notify } from "@/lib/notify";
 import type { Discussion } from "@ollo-dev/shared/types";
 
 interface CreateDiscussionDialogProps {
   trigger?: React.ReactElement;
+  projectId?: string;
 }
 
-export function CreateDiscussionDialog({ trigger }: CreateDiscussionDialogProps) {
+export function CreateDiscussionDialog({ trigger, projectId }: CreateDiscussionDialogProps) {
   const t = useTranslations("discussions");
   const tCommon = useTranslations("common");
   const { addDiscussion } = useDiscussionsStore();
+  const { projects } = useProjectStore();
   const { org, accessToken } = useAuth();
   const orgId = org?.id;
   const [open, setOpen] = useState(false);
@@ -35,12 +39,14 @@ export function CreateDiscussionDialog({ trigger }: CreateDiscussionDialogProps)
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("general");
   const [tagsInput, setTagsInput] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectId ?? null);
 
   const resetForm = () => {
     setTitle("");
     setBody("");
     setCategory("general");
     setTagsInput("");
+    setSelectedProjectId(projectId ?? null);
     setError(null);
   };
 
@@ -61,17 +67,20 @@ export function CreateDiscussionDialog({ trigger }: CreateDiscussionDialogProps)
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({ title, body, category, tags }),
+          body: JSON.stringify({ title, body, category, tags, project_id: selectedProjectId }),
         }
       );
       if (!res.ok) throw new Error("Failed to create discussion");
       const json = await res.json();
       const discussion: Discussion = json.data ?? json;
       addDiscussion(discussion);
+      notify.success("Discussion created", `"${title}" is live.`);
       resetForm();
       setOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      notify.error("Failed to create discussion", msg);
     } finally {
       setSubmitting(false);
     }
@@ -137,6 +146,23 @@ export function CreateDiscussionDialog({ trigger }: CreateDiscussionDialogProps)
                 disabled={submitting}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-text-primary">
+              Project (optional)
+            </label>
+            <select
+              className="h-8 rounded-lg border border-border-subtle bg-surface-primary px-2.5 text-sm text-text-primary focus:outline-none"
+              value={selectedProjectId ?? ""}
+              onChange={(e) => setSelectedProjectId(e.target.value || null)}
+              disabled={submitting || !!projectId}
+            >
+              <option value="">Org-wide (no project)</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
