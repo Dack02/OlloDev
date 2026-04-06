@@ -36,7 +36,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push(`/${locale}/chat`);
+    router.push(`/${locale}/threads`);
     router.refresh();
   }
 

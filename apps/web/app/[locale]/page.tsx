@@ -6,5 +6,5 @@ export default async function LocaleHome({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  redirect(`/${locale}/chat`);
+  redirect(`/${locale}/threads`);
 }
