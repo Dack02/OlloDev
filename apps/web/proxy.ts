@@ -5,7 +5,7 @@ import { routing } from './i18n/routing';
 
 const intlMiddleware = createMiddleware(routing);
 
-const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password'];
+const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password', '/set-password'];
 
 function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((route) => pathname.includes(route));
@@ -64,10 +64,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated user trying to access an auth route
-  if (user && isAuthRoute(pathname)) {
-    const chatUrl = new URL(`/${locale}/chat`, request.url);
-    return NextResponse.redirect(chatUrl);
+  // Authenticated user trying to access an auth route (except set-password)
+  if (user && isAuthRoute(pathname) && !pathname.includes('/set-password')) {
+    const threadsUrl = new URL(`/${locale}/threads`, request.url);
+    return NextResponse.redirect(threadsUrl);
   }
 
   // Pass through to intl middleware for locale handling

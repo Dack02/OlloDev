@@ -446,10 +446,34 @@ app.openapi(inviteMemberRoute, async (c) => {
       email: body.email,
       options: {
         data: { org_id: orgId, role: body.role },
-        redirectTo: `${webUrl}/auth/callback`,
+        redirectTo: `${webUrl}/auth/callback?org_id=${orgId}`,
       },
     });
     if (linkErr) return badRequest(c, linkErr.message);
+
+    // Add the new user to the target org immediately
+    // (generateLink already created the user in auth.users, trigger added them to default org)
+    const newUserId = linkData.user.id;
+    const { data: defaultOrg } = await supabase
+      .from('orgs')
+      .select('id')
+      .eq('slug', 'default')
+      .single();
+
+    if (!defaultOrg || defaultOrg.id !== orgId) {
+      // Target org is different from default — insert membership
+      await supabase.from('org_members').insert({
+        org_id: orgId,
+        user_id: newUserId,
+        role: body.role,
+      });
+    } else if (body.role !== 'member') {
+      // Target org IS the default org but role differs — update
+      await supabase.from('org_members')
+        .update({ role: body.role })
+        .eq('org_id', orgId)
+        .eq('user_id', newUserId);
+    }
 
     const actionUrl = linkData?.properties?.action_link
         ? rewriteActionLink(linkData.properties.action_link, webUrl)
@@ -477,7 +501,7 @@ app.openapi(inviteMemberRoute, async (c) => {
       email: body.email,
       role: body.role,
       invited_by: user.id,
-      status: invitee ? 'accepted' : 'pending',
+      status: 'accepted',
     },
     { onConflict: 'org_id,email' }
   );
@@ -655,7 +679,7 @@ app.openapi(resendMemberInviteRoute, async (c) => {
       email,
       options: {
         data: { org_id: orgId, role: targetMembership.role },
-        redirectTo: `${webUrl}/auth/callback`,
+        redirectTo: `${webUrl}/auth/callback?org_id=${orgId}`,
       },
     });
     actionUrl = linkData?.properties?.action_link
@@ -788,7 +812,7 @@ app.openapi(resendInviteRoute, async (c) => {
     email: invite.email,
     options: {
       data: { org_id: orgId, role: invite.role },
-      redirectTo: `${webUrl}/auth/callback`,
+      redirectTo: `${webUrl}/auth/callback?org_id=${orgId}`,
     },
   });
   if (linkErr) return badRequest(c, linkErr.message);
