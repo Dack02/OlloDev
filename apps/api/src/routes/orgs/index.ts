@@ -147,15 +147,32 @@ app.openapi(createOrgRoute, async (c) => {
 // Helper: verify membership (optionally require admin/owner)
 // ============================================================
 /**
- * Rewrite the host of a Supabase-generated action link to point to our web URL.
- * Supabase generates links using the project's Site URL (often localhost).
+ * Rewrite a Supabase-generated action link so it points to the real Supabase
+ * project URL (not localhost) and redirects back to the real web app URL.
+ *
+ * Supabase generates links like:
+ *   http://localhost:3000/auth/v1/verify?token=...&type=invite&redirect_to=http://localhost:3000
+ *
+ * We rewrite to:
+ *   https://<project>.supabase.co/auth/v1/verify?token=...&type=invite&redirect_to=https://dev.ollosoft.io/auth/callback
  */
 function rewriteActionLink(actionLink: string, webUrl: string): string {
   try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    if (!supabaseUrl) return actionLink;
+
     const parsed = new URL(actionLink);
-    const target = new URL(webUrl);
-    parsed.protocol = target.protocol;
-    parsed.host = target.host;
+    const supabase = new URL(supabaseUrl);
+
+    // Point the verify endpoint at the real Supabase project
+    parsed.protocol = supabase.protocol;
+    parsed.host = supabase.host;
+
+    // Fix the redirect_to param to point to the real web app
+    if (parsed.searchParams.has('redirect_to')) {
+      parsed.searchParams.set('redirect_to', `${webUrl}/auth/callback`);
+    }
+
     return parsed.toString();
   } catch {
     return actionLink;
