@@ -146,6 +146,22 @@ app.openapi(createOrgRoute, async (c) => {
 // ============================================================
 // Helper: verify membership (optionally require admin/owner)
 // ============================================================
+/**
+ * Rewrite the host of a Supabase-generated action link to point to our web URL.
+ * Supabase generates links using the project's Site URL (often localhost).
+ */
+function rewriteActionLink(actionLink: string, webUrl: string): string {
+  try {
+    const parsed = new URL(actionLink);
+    const target = new URL(webUrl);
+    parsed.protocol = target.protocol;
+    parsed.host = target.host;
+    return parsed.toString();
+  } catch {
+    return actionLink;
+  }
+}
+
 async function getMembership(orgId: string, userId: string) {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -418,7 +434,9 @@ app.openapi(inviteMemberRoute, async (c) => {
     });
     if (linkErr) return badRequest(c, linkErr.message);
 
-    const actionUrl = linkData?.properties?.action_link ?? webUrl;
+    const actionUrl = linkData?.properties?.action_link
+        ? rewriteActionLink(linkData.properties.action_link, webUrl)
+        : webUrl;
 
     // Send invite email via Resend
     sendEmailAsync(orgId, {
@@ -623,7 +641,9 @@ app.openapi(resendMemberInviteRoute, async (c) => {
         redirectTo: `${webUrl}/auth/callback`,
       },
     });
-    actionUrl = linkData?.properties?.action_link ?? webUrl;
+    actionUrl = linkData?.properties?.action_link
+        ? rewriteActionLink(linkData.properties.action_link, webUrl)
+        : webUrl;
   }
 
   sendEmailAsync(orgId, {
@@ -756,7 +776,9 @@ app.openapi(resendInviteRoute, async (c) => {
   });
   if (linkErr) return badRequest(c, linkErr.message);
 
-  const actionUrl = linkData?.properties?.action_link ?? webUrl;
+  const actionUrl = linkData?.properties?.action_link
+        ? rewriteActionLink(linkData.properties.action_link, webUrl)
+        : webUrl;
 
   // Send invite email via Resend
   sendEmailAsync(orgId, {
