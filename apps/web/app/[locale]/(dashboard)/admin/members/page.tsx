@@ -93,6 +93,9 @@ export default function MembersPage() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  // Member resend invite state
+  const [resendingMemberId, setResendingMemberId] = useState<string | null>(null);
+
   // Role update state
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -180,6 +183,25 @@ export default function MembersPage() {
       }
     } finally {
       setCancellingId(null);
+    }
+  }
+
+  async function handleResendMemberInvite(userId: string) {
+    if (!org?.id || !accessToken) return;
+    setResendingMemberId(userId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/orgs/${org.id}/members/${userId}/resend-invite`,
+        { method: "POST", headers: authHeaders() }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.error?.message ?? t("resendError"));
+        setTimeout(() => setActionError(null), 5000);
+      }
+    } finally {
+      setResendingMemberId(null);
     }
   }
 
@@ -408,19 +430,30 @@ export default function MembersPage() {
                     </Badge>
                   )}
 
-                  {/* Remove button */}
+                  {/* Resend invite & Remove buttons */}
                   {isAdminOrOwner && member.user_id !== user?.id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
-                      onClick={() => {
-                        setRemovingMember(member);
-                        setRemoveOpen(true);
-                      }}
-                    >
-                      {t("remove")}
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={resendingMemberId === member.user_id}
+                        onClick={() => handleResendMemberInvite(member.user_id)}
+                      >
+                        {resendingMemberId === member.user_id ? t("resending") : t("resendInvite")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                        onClick={() => {
+                          setRemovingMember(member);
+                          setRemoveOpen(true);
+                        }}
+                      >
+                        {t("remove")}
+                      </Button>
+                    </>
                   )}
                 </li>
               ))}

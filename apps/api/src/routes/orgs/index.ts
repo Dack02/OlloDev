@@ -556,6 +556,95 @@ app.openapi(removeMemberRoute, async (c) => {
 });
 
 // ============================================================
+// POST /:orgId/members/:userId/resend-invite - resend invite to existing member
+// ============================================================
+const resendMemberInviteRoute = createRoute({
+  method: 'post',
+  path: '/:orgId/members/:userId/resend-invite',
+  tags: ['Organizations'],
+  summary: 'Resend invitation email to an existing member (admin/owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orgId: z.string().uuid(), userId: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'Invitation resent',
+      content: { 'application/json': { schema: z.object({ data: z.object({ message: z.string() }) }) } },
+    },
+    401: { description: 'Unauthorized' },
+    403: { description: 'Forbidden' },
+    404: { description: 'Member not found' },
+  },
+});
+
+app.openapi(resendMemberInviteRoute, async (c) => {
+  const user = c.get('user');
+  const { orgId, userId } = c.req.valid('param');
+  const supabase = createServiceClient();
+
+  const actorMembership = await getMembership(orgId, user.id);
+  if (!actorMembership) return forbidden(c, 'You are not a member of this organization');
+  if (!['owner', 'admin'].includes(actorMembership.role)) {
+    return forbidden(c, 'Only admins and owners can resend invites');
+  }
+
+  // Get the target member
+  const targetMembership = await getMembership(orgId, userId);
+  if (!targetMembership) return notFound(c, 'Member not found');
+
+  // Get member email
+  const { data: targetUser } = await supabase.auth.admin.getUserById(userId);
+  if (!targetUser?.user) return notFound(c, 'User not found');
+  const email = targetUser.user.email;
+  if (!email) return badRequest(c, 'User has no email address');
+
+  // Get org name
+  const { data: org } = await supabase
+    .from('orgs')
+    .select('name')
+    .eq('id', orgId)
+    .single();
+  const orgName = org?.name ?? 'your organization';
+  const inviterName = await getUserDisplayName(user.id);
+  const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://dev.ollosoft.io';
+
+  // Check if user has confirmed their email (new user who hasn't accepted yet)
+  const isNewUser = !targetUser.user.email_confirmed_at;
+
+  let actionUrl = webUrl;
+  if (isNewUser) {
+    // Generate a fresh invite link for unconfirmed users
+    const { data: linkData } = await supabase.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: {
+        data: { org_id: orgId, role: targetMembership.role },
+        redirectTo: `${webUrl}/auth/callback`,
+      },
+    });
+    actionUrl = linkData?.properties?.action_link ?? webUrl;
+  }
+
+  sendEmailAsync(orgId, {
+    to: email,
+    subject: isNewUser
+      ? `You're invited to join ${orgName}`
+      : `You've been added to ${orgName}`,
+    html: renderMemberInvite({
+      orgName,
+      inviterName,
+      role: targetMembership.role,
+      actionUrl,
+      isNewUser,
+    }),
+    tags: [{ name: 'type', value: 'member_invite_resend' }],
+  });
+
+  return c.json({ data: { message: `Invitation resent to ${email}` } });
+});
+
+// ============================================================
 // GET /:orgId/invites - list pending invites
 // ============================================================
 const listInvitesRoute = createRoute({
