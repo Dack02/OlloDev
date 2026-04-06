@@ -3,3 +3,4 @@ export { renderTicketStatusUpdated, type TicketStatusUpdatedProps } from './tick
 export { renderTicketAssigned, type TicketAssignedProps } from './ticket-assigned.js';
 export { renderTicketComment, type TicketCommentProps } from './ticket-comment.js';
 export { renderTicketResolved, type TicketResolvedProps } from './ticket-resolved.js';
+export { renderMemberInvite, type MemberInviteProps } from './member-invite.js';

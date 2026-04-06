@@ -228,7 +228,18 @@
     "inviteSuccess": "Invitation sent successfully.",
     "inviteError": "Failed to send invitation.",
     "roleUpdateError": "Failed to update role.",
-    "removeError": "Failed to remove member."
+    "removeError": "Failed to remove member.",
+    "pendingInvites": "Pending Invitations",
+    "noPendingInvites": "No pending invitations.",
+    "resendInvite": "Resend",
+    "resending": "Resending...",
+    "resendSuccess": "Invitation resent.",
+    "resendError": "Failed to resend invitation.",
+    "cancelInvite": "Cancel",
+    "cancelInviteConfirm": "Cancel the invitation for {email}?",
+    "cancelInviteSuccess": "Invitation cancelled.",
+    "cancelInviteError": "Failed to cancel invitation.",
+    "invitedAs": "Invited as {role}"
   },
   "timeTracking": {
     "title": "Time Tracking",

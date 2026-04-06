@@ -14,6 +14,8 @@ import {
   conflict,
   internalError,
 } from '../../lib/errors.js';
+import { sendEmailAsync, getUserDisplayName } from '../../services/email.js';
+import { renderMemberInvite } from '../../emails/member-invite.js';
 
 const app = new OpenAPIHono<{ Variables: AuthVariables }>();
 
@@ -362,6 +364,16 @@ app.openapi(inviteMemberRoute, async (c) => {
     return forbidden(c, 'Only admins and owners can invite members');
   }
 
+  // Get org name for the email
+  const { data: org } = await supabase
+    .from('orgs')
+    .select('name')
+    .eq('id', orgId)
+    .single();
+  const orgName = org?.name ?? 'your organization';
+  const inviterName = await getUserDisplayName(user.id);
+  const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://dev.ollosoft.io';
+
   // Lookup user by email via admin API
   const { data: usersData, error: usersErr } = await supabase.auth.admin.listUsers();
   if (usersErr) return internalError(c, usersErr.message);
@@ -379,15 +391,61 @@ app.openapi(inviteMemberRoute, async (c) => {
       user_id: invitee.id,
       role: body.role,
     });
-
     if (addErr) return badRequest(c, addErr.message);
-  } else {
-    // Invite via Supabase - this sends an email
-    const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(body.email, {
-      data: { org_id: orgId, role: body.role },
+
+    // Send notification email via Resend
+    sendEmailAsync(orgId, {
+      to: body.email,
+      subject: `You've been added to ${orgName}`,
+      html: renderMemberInvite({
+        orgName,
+        inviterName,
+        role: body.role,
+        actionUrl: webUrl,
+        isNewUser: false,
+      }),
+      tags: [{ name: 'type', value: 'member_added' }],
     });
-    if (inviteErr) return badRequest(c, inviteErr.message);
+  } else {
+    // Generate an invite link without Supabase sending the email
+    const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+      type: 'invite',
+      email: body.email,
+      options: {
+        data: { org_id: orgId, role: body.role },
+        redirectTo: `${webUrl}/auth/callback`,
+      },
+    });
+    if (linkErr) return badRequest(c, linkErr.message);
+
+    const actionUrl = linkData?.properties?.action_link ?? webUrl;
+
+    // Send invite email via Resend
+    sendEmailAsync(orgId, {
+      to: body.email,
+      subject: `You're invited to join ${orgName}`,
+      html: renderMemberInvite({
+        orgName,
+        inviterName,
+        role: body.role,
+        actionUrl,
+        isNewUser: true,
+      }),
+      tags: [{ name: 'type', value: 'member_invite' }],
+    });
   }
+
+  // Track the invite in org_invites (upsert in case of re-invite)
+  await supabase.from('org_invites').upsert(
+    {
+      org_id: orgId,
+      email: body.email,
+      role: body.role,
+      invited_by: user.id,
+      status: invitee ? 'accepted' : 'pending',
+    },
+    { onConflict: 'org_id,email' }
+  );
 
   return c.json({ data: { message: `Invitation sent to ${body.email}` } });
 });
@@ -495,6 +553,189 @@ app.openapi(removeMemberRoute, async (c) => {
   if (count === 0) return notFound(c, 'Member not found');
 
   return c.json({ data: { message: 'Member removed successfully' } });
+});
+
+// ============================================================
+// GET /:orgId/invites - list pending invites
+// ============================================================
+const listInvitesRoute = createRoute({
+  method: 'get',
+  path: '/:orgId/invites',
+  tags: ['Organizations'],
+  summary: 'List pending invitations (admin/owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orgId: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'List of invites',
+      content: { 'application/json': { schema: z.object({ data: z.array(z.any()) }) } },
+    },
+    401: { description: 'Unauthorized' },
+    403: { description: 'Forbidden' },
+  },
+});
+
+app.openapi(listInvitesRoute, async (c) => {
+  const user = c.get('user');
+  const { orgId } = c.req.valid('param');
+  const supabase = createServiceClient();
+
+  const membership = await getMembership(orgId, user.id);
+  if (!membership) return forbidden(c, 'You are not a member of this organization');
+  if (!['owner', 'admin'].includes(membership.role)) {
+    return forbidden(c, 'Only admins and owners can view invites');
+  }
+
+  const { data: invites, error } = await supabase
+    .from('org_invites')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) return internalError(c, error.message);
+
+  return c.json({ data: invites ?? [] });
+});
+
+// ============================================================
+// POST /:orgId/invites/:inviteId/resend - resend an invitation
+// ============================================================
+const resendInviteRoute = createRoute({
+  method: 'post',
+  path: '/:orgId/invites/:inviteId/resend',
+  tags: ['Organizations'],
+  summary: 'Resend a pending invitation email (admin/owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orgId: z.string().uuid(), inviteId: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'Invitation resent',
+      content: { 'application/json': { schema: z.object({ data: z.object({ message: z.string() }) }) } },
+    },
+    400: { description: 'Bad request' },
+    401: { description: 'Unauthorized' },
+    403: { description: 'Forbidden' },
+    404: { description: 'Invite not found' },
+  },
+});
+
+app.openapi(resendInviteRoute, async (c) => {
+  const user = c.get('user');
+  const { orgId, inviteId } = c.req.valid('param');
+  const supabase = createServiceClient();
+
+  const membership = await getMembership(orgId, user.id);
+  if (!membership) return forbidden(c, 'You are not a member of this organization');
+  if (!['owner', 'admin'].includes(membership.role)) {
+    return forbidden(c, 'Only admins and owners can resend invites');
+  }
+
+  // Get the invite record
+  const { data: invite, error: inviteErr } = await supabase
+    .from('org_invites')
+    .select('*')
+    .eq('id', inviteId)
+    .eq('org_id', orgId)
+    .eq('status', 'pending')
+    .single();
+
+  if (inviteErr || !invite) return notFound(c, 'Pending invite not found');
+
+  // Get org name
+  const { data: org } = await supabase
+    .from('orgs')
+    .select('name')
+    .eq('id', orgId)
+    .single();
+  const orgName = org?.name ?? 'your organization';
+  const inviterName = await getUserDisplayName(user.id);
+  const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://dev.ollosoft.io';
+
+  // Generate a fresh invite link
+  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+    type: 'invite',
+    email: invite.email,
+    options: {
+      data: { org_id: orgId, role: invite.role },
+      redirectTo: `${webUrl}/auth/callback`,
+    },
+  });
+  if (linkErr) return badRequest(c, linkErr.message);
+
+  const actionUrl = linkData?.properties?.action_link ?? webUrl;
+
+  // Send invite email via Resend
+  sendEmailAsync(orgId, {
+    to: invite.email,
+    subject: `You're invited to join ${orgName}`,
+    html: renderMemberInvite({
+      orgName,
+      inviterName,
+      role: invite.role,
+      actionUrl,
+      isNewUser: true,
+    }),
+    tags: [{ name: 'type', value: 'member_invite_resend' }],
+  });
+
+  // Update the invite timestamp
+  await supabase
+    .from('org_invites')
+    .update({ invited_by: user.id })
+    .eq('id', inviteId);
+
+  return c.json({ data: { message: `Invitation resent to ${invite.email}` } });
+});
+
+// ============================================================
+// DELETE /:orgId/invites/:inviteId - cancel a pending invite
+// ============================================================
+const cancelInviteRoute = createRoute({
+  method: 'delete',
+  path: '/:orgId/invites/:inviteId',
+  tags: ['Organizations'],
+  summary: 'Cancel a pending invitation (admin/owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orgId: z.string().uuid(), inviteId: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'Invite cancelled',
+      content: { 'application/json': { schema: z.object({ data: z.object({ message: z.string() }) }) } },
+    },
+    401: { description: 'Unauthorized' },
+    403: { description: 'Forbidden' },
+    404: { description: 'Invite not found' },
+  },
+});
+
+app.openapi(cancelInviteRoute, async (c) => {
+  const user = c.get('user');
+  const { orgId, inviteId } = c.req.valid('param');
+  const supabase = createServiceClient();
+
+  const membership = await getMembership(orgId, user.id);
+  if (!membership) return forbidden(c, 'You are not a member of this organization');
+  if (!['owner', 'admin'].includes(membership.role)) {
+    return forbidden(c, 'Only admins and owners can cancel invites');
+  }
+
+  const { error, count } = await supabase
+    .from('org_invites')
+    .delete({ count: 'exact' })
+    .eq('id', inviteId)
+    .eq('org_id', orgId);
+
+  if (error) return internalError(c, error.message);
+  if (count === 0) return notFound(c, 'Invite not found');
+
+  return c.json({ data: { message: 'Invite cancelled' } });
 });
 
 export default app;

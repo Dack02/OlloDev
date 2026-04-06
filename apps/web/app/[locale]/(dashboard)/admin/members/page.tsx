@@ -19,7 +19,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, MailIcon } from "lucide-react";
 import { ORG_ROLES } from "@ollo-dev/shared/constants";
 
 // Graceful import of auth context
@@ -56,6 +56,17 @@ interface MemberWithProfile {
   } | null;
 }
 
+interface PendingInvite {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  invited_by: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function MembersPage() {
   const t = useTranslations("admin");
   const { user, org, accessToken } = useAuthSafe();
@@ -76,6 +87,11 @@ export default function MembersPage() {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<MemberWithProfile | null>(null);
   const [removing, setRemoving] = useState(false);
+
+  // Pending invites state
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   // Role update state
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
@@ -112,6 +128,61 @@ export default function MembersPage() {
     }
   }
 
+  async function loadInvites() {
+    if (!org?.id || !accessToken) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/orgs/${org.id}/invites`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setPendingInvites(json.data ?? []);
+      }
+    } catch {
+      // non-critical
+    }
+  }
+
+  async function handleResendInvite(inviteId: string) {
+    if (!org?.id || !accessToken) return;
+    setResendingId(inviteId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/orgs/${org.id}/invites/${inviteId}/resend`,
+        { method: "POST", headers: authHeaders() }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.error?.message ?? t("resendError"));
+        setTimeout(() => setActionError(null), 5000);
+      }
+    } finally {
+      setResendingId(null);
+    }
+  }
+
+  async function handleCancelInvite(inviteId: string) {
+    if (!org?.id || !accessToken) return;
+    setCancellingId(inviteId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/orgs/${org.id}/invites/${inviteId}`,
+        { method: "DELETE", headers: authHeaders() }
+      );
+      if (res.ok) {
+        setPendingInvites((prev) => prev.filter((inv) => inv.id !== inviteId));
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.error?.message ?? t("cancelInviteError"));
+        setTimeout(() => setActionError(null), 5000);
+      }
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   async function handleInvite() {
     if (!org?.id || !accessToken || !inviteEmail.trim()) return;
     setInviting(true);
@@ -127,7 +198,7 @@ export default function MembersPage() {
         setInviteSuccess(t("inviteSuccess"));
         setInviteEmail("");
         setInviteRole("member");
-        await loadMembers();
+        await Promise.all([loadMembers(), loadInvites()]);
         setTimeout(() => setInviteSuccess(null), 3000);
       } else {
         const err = await res.json().catch(() => null);
@@ -191,6 +262,7 @@ export default function MembersPage() {
       return;
     }
     loadMembers();
+    loadInvites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org?.id, accessToken]);
 
@@ -362,6 +434,60 @@ export default function MembersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pending Invitations */}
+      {isAdminOrOwner && pendingInvites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("pendingInvites")}</CardTitle>
+            <CardDescription>
+              {pendingInvites.length} pending
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border-subtle">
+              {pendingInvites.map((invite) => (
+                <li key={invite.id} className="flex items-center gap-3 py-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs">
+                      <MailIcon className="h-4 w-4 text-text-secondary" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {invite.email}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      {t("invitedAs", { role: invite.role })}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs capitalize shrink-0">
+                    {invite.role}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={resendingId === invite.id}
+                    onClick={() => handleResendInvite(invite.id)}
+                  >
+                    {resendingId === invite.id ? t("resending") : t("resendInvite")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                    disabled={cancellingId === invite.id}
+                    onClick={() => handleCancelInvite(invite.id)}
+                  >
+                    {t("cancelInvite")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Remove Confirmation Dialog */}
       <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
